@@ -2,10 +2,15 @@ import 'package:flutter/cupertino.dart';
 import 'package:celechron/model/task.dart';
 import 'package:celechron/utils/utils.dart';
 import 'package:celechron/utils/time_helper.dart';
+import 'package:celechron/manual/data/academic_repository.dart';
+import 'package:celechron/manual/model/local_course.dart';
+
+typedef TaskCourseLoader = Future<List<LocalCourse>> Function();
 
 class TaskEditPage extends StatefulWidget {
   final Task deadline;
-  const TaskEditPage(this.deadline, {super.key});
+  final TaskCourseLoader? courseLoader;
+  const TaskEditPage(this.deadline, {super.key, this.courseLoader});
 
   @override
   State<TaskEditPage> createState() => _TaskEditPageState();
@@ -14,6 +19,151 @@ class TaskEditPage extends StatefulWidget {
 class _TaskEditPageState extends State<TaskEditPage> {
   late Task now;
   int __got = 0;
+  List<LocalCourse> _courses = const [];
+  bool _coursesLoaded = false;
+  bool _courseLoadFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourses();
+  }
+
+  Future<void> _loadCourses() async {
+    try {
+      final courses = await (widget.courseLoader ?? _readLocalCourses)();
+      if (mounted) {
+        setState(() {
+          _courses = courses;
+          _coursesLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _coursesLoaded = true;
+          _courseLoadFailed = true;
+        });
+      }
+    }
+  }
+
+  Future<List<LocalCourse>> _readLocalCourses() async {
+    final repository = await AcademicRepository.open();
+    return (await repository.read()).courses;
+  }
+
+  String get _selectedCourseLabel {
+    if (now.courseId == null) return '不关联';
+    for (final course in _courses) {
+      if (course.id == now.courseId) return course.name;
+    }
+    return '课程不可用（保留原关联）';
+  }
+
+  Future<void> _chooseCourse() async {
+    final actions = <CupertinoActionSheetAction>[
+      CupertinoActionSheetAction(
+        onPressed: () {
+          setState(() => now.courseId = null);
+          Navigator.of(context).pop();
+        },
+        child: const Text('不关联课程'),
+      ),
+      ..._courses.map(
+        (course) => CupertinoActionSheetAction(
+          onPressed: () {
+            setState(() => now.courseId = course.id);
+            Navigator.of(context).pop();
+          },
+          child: Text(course.name),
+        ),
+      ),
+    ];
+    await showCupertinoModalPopup<void>(
+      context: context,
+      builder: (_) => CupertinoActionSheet(
+        title: const Text('关联课程（可选）'),
+        message: _courseLoadFailed
+            ? const Text('暂时无法读取本地课程，仍可不关联课程。')
+            : _courses.isEmpty
+                ? Text(_coursesLoaded ? '还没有本地课程。' : '正在读取本地课程…')
+                : null,
+        actions: actions,
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
+  void _setCoursework(bool value) {
+    setState(() {
+      now.isCoursework = value;
+      if (value) {
+        now.isTimeEstimated = false;
+        now.timeNeeded = Duration.zero;
+      } else {
+        now.isTimeEstimated = true;
+        if (now.timeNeeded <= Duration.zero) {
+          now.timeNeeded = const Duration(hours: 1);
+        }
+      }
+    });
+  }
+
+  void _setTimeEstimated(bool value) {
+    setState(() {
+      now.isTimeEstimated = value;
+      if (value && now.timeNeeded <= Duration.zero) {
+        now.timeNeeded = const Duration(hours: 1);
+      } else if (!value) {
+        now.timeNeeded = Duration.zero;
+      }
+    });
+  }
+
+  String _reminderOffsetLabel(Duration offset) {
+    if (offset == const Duration(days: 1)) return '提前一天';
+    if (offset == const Duration(hours: 1)) return '提前一小时';
+    if (offset == const Duration(minutes: 30)) return '提前 30 分钟';
+    if (offset == const Duration(minutes: 15)) return '提前 15 分钟';
+    if (offset == const Duration(minutes: 5)) return '提前 5 分钟';
+    return '提前 ${durationToString(offset)}';
+  }
+
+  Future<void> _chooseReminderOffset() async {
+    const offsets = [
+      Duration(days: 1),
+      Duration(hours: 1),
+      Duration(minutes: 30),
+      Duration(minutes: 15),
+      Duration(minutes: 5),
+    ];
+    await showCupertinoModalPopup<void>(
+      context: context,
+      builder: (popupContext) => CupertinoActionSheet(
+        title: const Text('提醒时间'),
+        actions: offsets
+            .map(
+              (offset) => CupertinoActionSheetAction(
+                key: ValueKey('task-reminder-offset-${offset.inMinutes}'),
+                onPressed: () {
+                  setState(() => now.reminderOffset = offset);
+                  Navigator.of(popupContext).pop();
+                },
+                child: Text(_reminderOffsetLabel(offset)),
+              ),
+            )
+            .toList(growable: false),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(popupContext).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
 
   void saveAndExit() {
     if (now.type == TaskType.fixed && !now.startTime.isBefore(now.endTime)) {
@@ -119,6 +269,9 @@ class _TaskEditPageState extends State<TaskEditPage> {
           dateOnly(now.repeatEndsTime).isBefore(dateOnly(now.startTime))) {
         now.repeatEndsTime = dateOnly(now.startTime);
       }
+      if (now.isCoursework && !now.isTimeEstimated) {
+        now.timeNeeded = Duration.zero;
+      }
       __got = 1;
     }
 
@@ -133,12 +286,14 @@ class _TaskEditPageState extends State<TaskEditPage> {
         backgroundColor: CupertinoDynamicColor.resolve(
             CupertinoColors.systemGroupedBackground, context),
         leading: CupertinoButton(
+          key: const ValueKey('task-edit-cancel'),
           padding: EdgeInsets.zero,
           onPressed: exitWithoutSave,
           child: const Icon(CupertinoIcons.xmark),
         ),
         middle: const Text('编辑任务'),
         trailing: CupertinoButton(
+          key: const ValueKey('task-edit-save'),
           padding: EdgeInsets.zero,
           onPressed: saveAndExit,
           child: const Icon(CupertinoIcons.check_mark),
@@ -275,115 +430,181 @@ class _TaskEditPageState extends State<TaskEditPage> {
                 ),
                 if (now.type == TaskType.deadline)
                   CupertinoListSection.insetGrouped(
-                    header: const Text('时间安排'),
+                    header: const Text('提醒设置'),
+                    footer: const Text('此处只保存提醒偏好；系统通知将在后续步骤接入。'),
                     children: [
                       CupertinoListTile(
-                        title: const Text('预期用时'),
-                        trailing: Text(durationToString(now.timeNeeded)),
-                        onTap: () async {
-                          await showCupertinoModalPopup(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return CupertinoPageScaffold(
-                                  child: SizedBox(
-                                    height: MediaQuery.of(context)
-                                            .copyWith()
-                                            .size
-                                            .height /
-                                        3,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        SizedBox(
-                                          width: 150,
-                                          child: CupertinoPicker(
-                                            itemExtent: 32,
-                                            scrollController:
-                                                FixedExtentScrollController(
-                                              initialItem:
-                                                  now.timeNeeded.inHours,
-                                            ),
-                                            onSelectedItemChanged: (value) {
-                                              now.timeNeeded = Duration(
-                                                  hours: value,
-                                                  minutes:
-                                                      now.timeNeeded.inMinutes %
-                                                          60);
-                                              if (now.timeNeeded <=
-                                                  Duration.zero) {
-                                                now.timeNeeded =
-                                                    const Duration(minutes: 1);
-                                              }
-
-                                              setState(() {});
-                                            },
-                                            children: List.generate(
-                                              1000,
-                                              (index) =>
-                                                  Center(child: Text("$index")),
-                                            ),
-                                          ),
-                                        ),
-                                        const Text('小时'),
-                                        SizedBox(
-                                          width: 150,
-                                          child: CupertinoPicker(
-                                            itemExtent: 32,
-                                            looping: true,
-                                            scrollController:
-                                                FixedExtentScrollController(
-                                              initialItem:
-                                                  now.timeNeeded.inMinutes % 60,
-                                            ),
-                                            onSelectedItemChanged: (value) {
-                                              now.timeNeeded = Duration(
-                                                hours:
-                                                    now.timeNeeded.inMinutes ~/
-                                                        60,
-                                                minutes: value,
-                                              );
-                                              if (now.timeNeeded <=
-                                                  Duration.zero) {
-                                                now.timeNeeded =
-                                                    const Duration(minutes: 1);
-                                              }
-
-                                              setState(() {});
-                                            },
-                                            children: List.generate(
-                                              60,
-                                              (index) =>
-                                                  Center(child: Text("$index")),
-                                            ),
-                                          ),
-                                        ),
-                                        const Text('分钟'),
-                                      ],
-                                    ),
-                                    // CupertinoTimerPicker(
-                                    //   mode: CupertinoTimerPickerMode.hm,
-                                    //   initialTimerDuration: now.timeNeeded,
-                                    //   onTimerDurationChanged: (value) {
-                                    //     if (value > Duration.zero) {
-                                    //       setState(() {
-                                    //         now.timeNeeded = value;
-                                    //       });
-                                    //     } else {
-                                    //       setState(() {
-                                    //         now.timeNeeded =
-                                    //             const Duration(minutes: 1);
-                                    //       });
-                                    //     }
-                                    //   },
-                                    // ),
-                                  ),
-                                );
-                              });
-                        },
+                        title: const Text('截止前提醒'),
+                        trailing: CupertinoSwitch(
+                          key: const ValueKey('task-reminder-switch'),
+                          value: now.reminderEnabled,
+                          onChanged: (value) => setState(
+                            () => now.reminderEnabled = value,
+                          ),
+                        ),
                       ),
+                      if (now.reminderEnabled)
+                        CupertinoListTile(
+                          key: const ValueKey('task-reminder-offset'),
+                          title: const Text('提醒时间'),
+                          trailing: Text(
+                            _reminderOffsetLabel(now.reminderOffset),
+                          ),
+                          onTap: _chooseReminderOffset,
+                        ),
+                    ],
+                  ),
+                if (now.type == TaskType.deadline)
+                  CupertinoListSection.insetGrouped(
+                    header: const Text('课程作业'),
+                    footer: const Text('截止日期可以单独保存；未估时的课程作业不会进入自动规划。'),
+                    children: [
+                      CupertinoListTile(
+                        title: const Text('作为课程作业'),
+                        trailing: CupertinoSwitch(
+                          key: const ValueKey('task-coursework-switch'),
+                          value: now.isCoursework,
+                          onChanged: _setCoursework,
+                        ),
+                      ),
+                      if (now.isCoursework) ...[
+                        CupertinoListTile(
+                          key: const ValueKey('task-course-selector'),
+                          title: const Text('关联课程（可选）'),
+                          trailing: Text(_selectedCourseLabel),
+                          onTap: _chooseCourse,
+                        ),
+                        CupertinoListTile(
+                          title: const Text('已估算工作量'),
+                          trailing: CupertinoSwitch(
+                            key: const ValueKey('task-estimate-switch'),
+                            value: now.isTimeEstimated,
+                            onChanged: _setTimeEstimated,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                if (now.type == TaskType.deadline)
+                  CupertinoListSection.insetGrouped(
+                    header: const Text('时间安排'),
+                    children: [
+                      if (!now.isCoursework || now.isTimeEstimated)
+                        CupertinoListTile(
+                          title: const Text('预期用时'),
+                          trailing: Text(durationToString(now.timeNeeded)),
+                          onTap: () async {
+                            await showCupertinoModalPopup(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return CupertinoPageScaffold(
+                                    child: SizedBox(
+                                      height: MediaQuery.of(context)
+                                              .copyWith()
+                                              .size
+                                              .height /
+                                          3,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            width: 150,
+                                            child: CupertinoPicker(
+                                              itemExtent: 32,
+                                              scrollController:
+                                                  FixedExtentScrollController(
+                                                initialItem:
+                                                    now.timeNeeded.inHours,
+                                              ),
+                                              onSelectedItemChanged: (value) {
+                                                now.timeNeeded = Duration(
+                                                    hours: value,
+                                                    minutes: now.timeNeeded
+                                                            .inMinutes %
+                                                        60);
+                                                if (now.timeNeeded <=
+                                                    Duration.zero) {
+                                                  now.timeNeeded =
+                                                      const Duration(
+                                                          minutes: 1);
+                                                }
+
+                                                setState(() {});
+                                              },
+                                              children: List.generate(
+                                                1000,
+                                                (index) => Center(
+                                                    child: Text("$index")),
+                                              ),
+                                            ),
+                                          ),
+                                          const Text('小时'),
+                                          SizedBox(
+                                            width: 150,
+                                            child: CupertinoPicker(
+                                              itemExtent: 32,
+                                              looping: true,
+                                              scrollController:
+                                                  FixedExtentScrollController(
+                                                initialItem:
+                                                    now.timeNeeded.inMinutes %
+                                                        60,
+                                              ),
+                                              onSelectedItemChanged: (value) {
+                                                now.timeNeeded = Duration(
+                                                  hours: now.timeNeeded
+                                                          .inMinutes ~/
+                                                      60,
+                                                  minutes: value,
+                                                );
+                                                if (now.timeNeeded <=
+                                                    Duration.zero) {
+                                                  now.timeNeeded =
+                                                      const Duration(
+                                                          minutes: 1);
+                                                }
+
+                                                setState(() {});
+                                              },
+                                              children: List.generate(
+                                                60,
+                                                (index) => Center(
+                                                    child: Text("$index")),
+                                              ),
+                                            ),
+                                          ),
+                                          const Text('分钟'),
+                                        ],
+                                      ),
+                                      // CupertinoTimerPicker(
+                                      //   mode: CupertinoTimerPickerMode.hm,
+                                      //   initialTimerDuration: now.timeNeeded,
+                                      //   onTimerDurationChanged: (value) {
+                                      //     if (value > Duration.zero) {
+                                      //       setState(() {
+                                      //         now.timeNeeded = value;
+                                      //       });
+                                      //     } else {
+                                      //       setState(() {
+                                      //         now.timeNeeded =
+                                      //             const Duration(minutes: 1);
+                                      //       });
+                                      //     }
+                                      //   },
+                                      // ),
+                                    ),
+                                  );
+                                });
+                          },
+                        )
+                      else
+                        const CupertinoListTile(
+                          title: Text('预期用时'),
+                          trailing: Text('尚未估时'),
+                        ),
                       CupertinoListTile(
                         title: const Text('已经用时'),
                         trailing: Text(durationToString(now.timeSpent)),

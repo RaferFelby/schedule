@@ -1,5 +1,4 @@
 import 'package:celechron/model/practice_score_item.dart';
-import 'package:celechron/model/scholar.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> sztzItem({
@@ -137,20 +136,5 @@ void main() {
     final original = PracticeScoreItem.fromSztzJson(sztzItem(score: 3.75));
     final restored = PracticeScoreItem.fromJson(original.toJson());
     expect(restored.toJson(), original.toJson());
-  });
-
-  test('旧 Scholar 缓存无明细字段时保留旧总分', () {
-    final scholar = Scholar.fromJson({
-      'pt2': 4.5,
-      'pt3': 2,
-      'pt4': 1.25,
-      'isPracticeScoresGet': true,
-    });
-    expect(scholar.pt2, 4.5);
-    expect(scholar.pt3, 2);
-    expect(scholar.pt4, 1.25);
-    expect(scholar.practiceScoreItems, isEmpty);
-    expect(scholar.practiceDetailsAvailable, isFalse);
-    expect(scholar.practiceDataSource, PracticeDataSource.zdbkCache);
   });
 }

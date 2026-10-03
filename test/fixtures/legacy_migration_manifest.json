@@ -1,0 +1,37 @@
+{
+  "fixtureSet": "celechron-legacy-migration-synthetic-v1",
+  "syntheticOnly": true,
+  "containsRealUserData": false,
+  "cases": [
+    {
+      "id": "missing-fields",
+      "file": "legacy_missing_fields.json",
+      "coverage": ["missingSemesterDates", "missingCourseId"],
+      "expected": {"sourceRecordCount": 4, "readableRecords": 2, "needsReview": 2, "invalidRecords": 0}
+    },
+    {
+      "id": "same-name-courses",
+      "file": "legacy_same_name_courses.json",
+      "coverage": ["duplicateCourseNames", "distinctSourceIds"],
+      "expected": {"sourceRecordCount": 2, "readableRecords": 2, "needsReview": 0, "invalidRecords": 0}
+    },
+    {
+      "id": "grades-without-semester",
+      "file": "legacy_grades_without_semester.json",
+      "coverage": ["gradesWithoutSemester", "recordedZero", "unrecordedGrade"],
+      "expected": {"sourceRecordCount": 2, "readableRecords": 2, "needsReview": 2, "invalidRecords": 0}
+    },
+    {
+      "id": "corrupt-records",
+      "file": "legacy_corrupt_records.json",
+      "coverage": ["nullEntry", "wrongFieldType", "validSiblingRecord"],
+      "expected": {"sourceRecordCount": 3, "readableRecords": 1, "needsReview": 0, "invalidRecords": 2}
+    },
+    {
+      "id": "partial-cache",
+      "file": "legacy_partial_cache.json",
+      "coverage": ["partialCache", "missingSessionFields"],
+      "expected": {"sourceRecordCount": 3, "readableRecords": 2, "needsReview": 1, "invalidRecords": 0}
+    }
+  ]
+}

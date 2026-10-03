@@ -253,35 +253,13 @@ class DatabaseHelper {
   final String kPassword = 'password';
 
   Future<Scholar> getScholar() async {
-    var scholar = scholarBox.get('user', defaultValue: Scholar());
-    await Future.wait([
-      secureStorage
-          .read(key: kUsername, iOptions: secureStorageIOSOptions)
-          .then((value) {
-        if (value != null) scholar.username = value;
-      }),
-      secureStorage
-          .read(key: kPassword, iOptions: secureStorageIOSOptions)
-          .then((value) {
-        if (value != null) scholar.password = value;
-      })
-    ]);
+    final scholar = scholarBox.get('user', defaultValue: Scholar());
     scholar.db = this;
     return scholar;
   }
 
   Future<void> setScholar(Scholar scholar) async {
-    await Future.wait([
-      scholarBox.put('user', scholar),
-      secureStorage.write(
-          key: kUsername,
-          value: scholar.username,
-          iOptions: secureStorageIOSOptions),
-      secureStorage.write(
-          key: kPassword,
-          value: scholar.password,
-          iOptions: secureStorageIOSOptions)
-    ]);
+    await scholarBox.put('user', scholar);
   }
 
   Future<void> removeScholar() async {

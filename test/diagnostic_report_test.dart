@@ -120,52 +120,29 @@ void main() {
         DiagnosticReportSeverity.failed);
   });
 
-  test('顶层异常只记录一个 finish 并保留耗时和堆栈', () async {
+  test('本地操作异常记录包含脱敏错误与堆栈，不生成刷新状态字段', () {
     final service = DiagnosticLogService.instance;
     final before = service.currentText();
-    String? refreshId;
-
-    await expectLater(
-      service.runRefresh<void>(
-        origin: RefreshOrigin.foreground,
-        action: () async {
-          refreshId = service.currentRefreshId;
-          throw StateError('top-level-boom');
-        },
-      ),
-      throwsA(isA<StateError>()),
+    service.record(
+      level: CelechronLogLevel.error,
+      module: '本地启动',
+      operation: 'bootstrap',
+      message: '数据初始化未完成',
+      error: StateError('token=private-value'),
+      stackTrace: StackTrace.current,
     );
 
     final current = service.currentText();
     final appended =
         before.isEmpty ? current : current.substring(before.length + 1);
-    final ownLines = appended
-        .split('\n')
-        .where((line) => line.contains('refreshId=$refreshId'))
-        .toList();
-    final finishes =
-        ownLines.where((line) => line.contains('operation=finish')).toList();
-    expect(finishes, hasLength(1));
-    expect(finishes.single, contains('level=error'));
-    expect(finishes.single, contains('durationMs='));
-    expect(finishes.single, contains('exceptionType=StateError'));
-    expect(finishes.single, contains('stack='));
-
-    final report = parser.parse(ownLines.join('\n')).latestReport!;
-    expect(report.severity, DiagnosticReportSeverity.failed);
-    expect(diagnosticReportTitle(report), '刷新失败');
-    expect(report.durationMs, isNotNull);
-    final issue = report.issues.singleWhere(
-      (issue) => issue.category == DiagnosticIssueCategory.refreshExecution,
-    );
-    expect(issue.title, '刷新执行异常');
-    expect(issue.details.stack, isNotNull);
-    expect(
-      report.issues.any(
-        (issue) => issue.category == DiagnosticIssueCategory.serverOrNetwork,
-      ),
-      isFalse,
-    );
+    expect(appended, contains('level=error'));
+    expect(appended, contains('module=本地启动'));
+    expect(appended, contains('operation=bootstrap'));
+    expect(appended, contains('exceptionType=StateError'));
+    expect(appended, contains('token=<已隐藏>'));
+    expect(appended, contains('stack='));
+    expect(appended, isNot(contains('refreshId=')));
+    expect(appended, isNot(contains('status=')));
   });
 
   test('旧格式 error finish 后跟普通 finish 仍判定顶层失败', () {

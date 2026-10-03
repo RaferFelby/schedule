@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,26 +10,8 @@ import 'diagnostic_sanitizer.dart';
 
 enum CelechronLogLevel { debug, info, warning, error }
 
-enum RefreshOrigin { foreground, background, probe }
-
-/// 一次完整刷新的关联上下文，通过 Zone 传递给并行模块。
-class RefreshDiagnosticContext {
-  final String refreshId;
-  final RefreshOrigin origin;
-  final DateTime startedAt;
-  final Map<String, String> moduleResults = {};
-  int? durationMs;
-
-  RefreshDiagnosticContext({
-    required this.refreshId,
-    required this.origin,
-    required this.startedAt,
-  });
-}
-
 /// 统一收集、脱敏并串行落盘诊断信息，避免并发写入互相覆盖。
 class DiagnosticLogService {
-  static const _contextKey = #celechronRefreshDiagnosticContext;
   static const _maxMemoryLines = 2000;
   static const _maxExportFiles = 10;
   static const _bufferFileName = 'celechron-diagnostic-buffer.log';
@@ -39,119 +20,23 @@ class DiagnosticLogService {
 
   final List<String> _memoryLines = [];
   Future<void> _fileQueue = Future<void>.value();
-  RefreshDiagnosticContext? _lastRefreshContext;
 
   DiagnosticLogService._();
-
-  RefreshDiagnosticContext? get currentContext =>
-      Zone.current[_contextKey] as RefreshDiagnosticContext?;
-
-  RefreshDiagnosticContext? get latestContext =>
-      currentContext ?? _lastRefreshContext;
-
-  String? get currentRefreshId => latestContext?.refreshId;
-
-  Map<String, String> get latestModuleResults =>
-      Map.unmodifiable(latestContext?.moduleResults ?? const {});
-
-  RefreshOrigin get currentOrigin =>
-      currentContext?.origin ?? RefreshOrigin.foreground;
-
-  static String createRefreshId() {
-    final now = DateTime.now().toUtc();
-    return '${now.microsecondsSinceEpoch.toRadixString(36)}-'
-        '${now.hashCode.abs().toRadixString(36)}';
-  }
-
-  Future<T> runRefresh<T>({
-    required RefreshOrigin origin,
-    required Future<T> Function() action,
-  }) async {
-    // Zone 让异步子任务无需显式传参也能使用同一个 refreshId。
-    final context = RefreshDiagnosticContext(
-      refreshId: createRefreshId(),
-      origin: origin,
-      startedAt: DateTime.now(),
-    );
-    return runZoned(
-      () async {
-        Object? terminalError;
-        StackTrace? terminalStackTrace;
-        record(
-          module: 'refresh',
-          operation: 'start',
-          message: '完整刷新开始',
-        );
-        try {
-          return await action();
-        } on Object catch (error, stackTrace) {
-          terminalError = error;
-          terminalStackTrace = stackTrace;
-          rethrow;
-        } finally {
-          final elapsed =
-              DateTime.now().difference(context.startedAt).inMilliseconds;
-          context.durationMs = elapsed;
-          context.moduleResults['总耗时'] = '${elapsed}ms';
-          record(
-            level: terminalError == null
-                ? CelechronLogLevel.info
-                : CelechronLogLevel.error,
-            module: 'refresh',
-            operation: 'finish',
-            message: terminalError == null ? '完整刷新结束' : '完整刷新异常结束',
-            durationMs: elapsed,
-            error: terminalError,
-            stackTrace: terminalStackTrace,
-          );
-          _lastRefreshContext = context;
-        }
-      },
-      zoneValues: {_contextKey: context},
-    );
-  }
-
-  void setModuleResult(String module, String result) {
-    currentContext?.moduleResults[module] = _sanitize(result);
-    record(module: module, operation: 'result', message: result);
-  }
 
   void record({
     CelechronLogLevel level = CelechronLogLevel.info,
     required String module,
     required String operation,
     String? message,
-    Uri? requestUri,
-    int? statusCode,
-    String? contentType,
-    String? location,
-    int? durationMs,
-    bool relogged = false,
-    bool retried = false,
-    bool cacheUsed = false,
-    String? relatedRefreshId,
-    RefreshOrigin? origin,
     Object? error,
     StackTrace? stackTrace,
   }) {
-    // 所有自由文本和跳转地址都在进入内存、文件前完成脱敏。
-    final context = currentContext;
+    // 所有自由文本都在进入内存、文件前完成脱敏。
     final fields = <String>[
       DateTime.now().toUtc().toIso8601String(),
       'level=${level.name}',
-      'refreshId=${context?.refreshId ?? '-'}',
-      'relatedRefreshId=${relatedRefreshId == null ? '-' : _sanitize(relatedRefreshId)}',
-      'source=${origin?.name ?? context?.origin.name ?? 'foreground'}',
       'module=${_sanitize(module)}',
       'operation=${_sanitize(operation)}',
-      'url=${requestUri == null ? '-' : sanitizeUri(requestUri)}',
-      'status=${statusCode ?? '-'}',
-      'contentType=${contentType == null ? '-' : _sanitize(contentType)}',
-      'location=${location == null ? '-' : sanitizeLocation(location)}',
-      'durationMs=${durationMs ?? '-'}',
-      'relogged=$relogged',
-      'retried=$retried',
-      'cacheUsed=$cacheUsed',
       'exceptionType=${error?.runtimeType ?? '-'}',
       'exception=${error == null ? '-' : _sanitize(error.toString())}',
       if (message != null) 'message=${_sanitize(message)}',
@@ -294,14 +179,6 @@ class DiagnosticLogService {
     for (final file in files.skip(_maxExportFiles)) {
       await file.delete();
     }
-  }
-
-  static String sanitizeUri(Uri uri) {
-    return sanitizeDiagnosticUri(uri);
-  }
-
-  static String sanitizeLocation(String location) {
-    return sanitizeDiagnosticLocation(location);
   }
 
   @visibleForTesting

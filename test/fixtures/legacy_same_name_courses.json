@@ -1,0 +1,6 @@
+{
+  "courses": [
+    {"id": "source-course-a", "name": "同名示例课", "credit": 2.0},
+    {"id": "source-course-b", "name": "同名示例课", "credit": 3.0}
+  ]
+}

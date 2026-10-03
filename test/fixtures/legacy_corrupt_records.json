@@ -1,0 +1,7 @@
+{
+  "grades": [
+    {"xkkh": "synthetic-valid-001", "kcmc": "可读成绩", "xf": 2.0, "cj": "85", "jd": 4.0},
+    null,
+    {"xkkh": "synthetic-corrupt-002", "kcmc": "损坏成绩", "xf": "not-a-number", "cj": [], "jd": {}}
+  ]
+}

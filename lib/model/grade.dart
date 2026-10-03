@@ -1,4 +1,5 @@
 import 'package:celechron/utils/json_utils.dart';
+import 'package:celechron/manual/model/grading_policy.dart';
 
 class Grade {
   String id; // 课程号
@@ -32,39 +33,6 @@ class Grade {
     return key;
   }
 
-  static final Map<double, double> _toFourPoint = {
-    5.0: 4.3,
-    4.8: 4.2,
-    4.5: 4.1,
-    4.2: 4.0,
-  };
-
-  static final Map<String, int> _toHundredPoint = {
-    "A+": 95,
-    "A": 90,
-    "A-": 87,
-    "B+": 83,
-    "B": 80,
-    "B-": 77,
-    "C+": 73,
-    "C": 70,
-    "C-": 67,
-    "D": 60,
-    "F": 0,
-    "优秀": 90,
-    "良好": 80,
-    "中等": 70,
-    "及格": 60,
-    "不及格": 0,
-    "合格": 75,
-    "不合格": 0,
-    "弃修": 0,
-    "缺考": 0,
-    "缓考": 0,
-    "待录": 0,
-    "无效": 0,
-  };
-
   Grade.empty()
       : id = "",
         name = "",
@@ -91,10 +59,9 @@ class Grade {
   }
 
   void _completeDerivedFields() {
-    final numericScore = RegExp(r'\d+').firstMatch(original)?.group(0);
-    hundredPoint =
-        _toHundredPoint[original] ?? int.tryParse(numericScore ?? '') ?? 0;
-    fourPoint = fivePoint > 4.0 ? (_toFourPoint[fivePoint] ?? 4.0) : fivePoint;
+    hundredPoint = GradingMethodPolicy.importedLabelToHundredPoint(original);
+    fourPoint =
+        GradingMethodPolicy.importedFivePointToFourPointValue(fivePoint);
     fourPointLegacy = fivePoint > 4.0 ? 4.0 : fivePoint;
     creditIncluded = original != "弃修" &&
         original != "待录" &&

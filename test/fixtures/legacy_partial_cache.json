@@ -1,0 +1,10 @@
+{
+  "cacheState": "partial",
+  "courses": [
+    {"id": "cache-course-001", "name": "缓存课程", "credit": 2.0}
+  ],
+  "sessions": [
+    {"id": "cache-session-001", "courseId": "cache-course-001", "weekday": 2, "weeks": [1, 3, 5], "periods": [1, 2]},
+    {"courseId": "cache-course-001", "weekday": "unknown"}
+  ]
+}

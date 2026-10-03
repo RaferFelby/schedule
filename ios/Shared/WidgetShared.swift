@@ -66,6 +66,7 @@ enum WidgetAppGroup {
     }
 
     static let flowListKey = "flowList"
+    static let flowRevisionKey = "flowRevision"
     static let ecardBalanceKey = "ecardBalance"
     static let ecardUpdateTimeKey = "ecardUpdateTime"
     /// 是否已登录校园卡（不含 token；仅布尔/状态，供手表 UI 分流）
@@ -93,39 +94,6 @@ extension Date {
         formatter.locale = Locale.current
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: self)
-    }
-}
-
-enum ECardBalanceFormatter {
-    /// balance 单位为分；负值表示待刷新
-    static func string(from balance: Int) -> String {
-        if balance < 0 {
-            return "待刷新"
-        }
-        let yuan = Double(balance) / 100.0
-        let fraction = (balance % 10 == 0) ? 1 : 2
-        let formatted = yuan.formatted(
-            .number
-                .precision(.fractionLength(fraction))
-                .locale(Locale.current)
-        )
-        return "\(formatted)元"
-    }
-
-    /// 紧凑显示，适合圆形表盘：18.97 / 待刷新
-    static func compact(from balance: Int) -> String {
-        if balance < 0 {
-            return "--"
-        }
-        if balance < 10000 {
-            return String(
-                format: "%d.%d%d",
-                balance / 100,
-                balance % 100 / 10,
-                balance % 10
-            )
-        }
-        return String(format: "%d", balance / 100)
     }
 }
 

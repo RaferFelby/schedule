@@ -1,21 +1,44 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
-import 'package:flutter/material.dart' show Icons;
-import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher_string.dart';
+import 'package:flutter/material.dart'
+    show Brightness, Icons, MaterialApp, ThemeData, ThemeMode;
+import 'package:hive/hive.dart';
 
-import 'package:celechron/page/scholar/scholar_view.dart';
-import 'package:celechron/page/flow/flow_view.dart';
-import 'package:celechron/page/task/task_view.dart';
-import 'package:celechron/page/calendar/calendar_view.dart';
-import 'package:celechron/page/option/option_view.dart';
-
-import 'package:celechron/worker/fuse.dart';
+import 'package:celechron/manual/data/academic_repository.dart';
+import 'package:celechron/manual/page/semester_list_page.dart';
+import 'package:celechron/manual/page/manual_calendar_page.dart';
+import 'package:celechron/manual/page/manual_upcoming_preview_page.dart';
+import 'package:celechron/manual/page/manual_homework_preview_page.dart';
+import 'package:celechron/debug/manual_preview_task_store.dart';
+import 'package:celechron/manual/page/manual_settings_page.dart';
+import 'package:celechron/manual/data/storage_generation.dart';
+import 'package:celechron/manual/model/manual_user_preferences.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.title});
+  const HomePage({
+    super.key,
+    required this.title,
+    required this.manualAcademicRepository,
+    required this.manualTaskBox,
+    required this.manualActiveGeneration,
+    required this.preferences,
+    required this.onPreferencesChanged,
+    this.onRestoreBackup,
+  });
 
   final String title;
+
+  /// When provided, the academic tab reads and writes the active local profile.
+  final AcademicRepository manualAcademicRepository;
+
+  /// Task storage used to keep course/semester deletion associations consistent.
+  final Box<String> manualTaskBox;
+  final StorageGenerationManifest manualActiveGeneration;
+  final ManualUserPreferences preferences;
+  final ValueChanged<ManualUserPreferences> onPreferencesChanged;
+  final Future<void> Function(String backupJson)? onRestoreBackup;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -24,20 +47,99 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _indexNum = 0;
   final PageController _pageController = PageController();
+  final GlobalKey<ManualCalendarPageState> _manualCalendarKey =
+      GlobalKey<ManualCalendarPageState>();
 
   // 只构建一次，保持各页 widget 身份稳定，切页时不会重跑各页构造器里的 Get.put
-  late final List<Widget> _pages = [
-    _KeepAlivePage(child: FlowPage()),
-    _KeepAlivePage(child: CalendarPage()),
-    _KeepAlivePage(child: TaskPage()),
-    _KeepAlivePage(child: ScholarPage()),
-    _KeepAlivePage(child: OptionPage()),
-  ];
+  late List<Widget> _pages;
+
+  List<Widget> _makePages() => [
+        _KeepAlivePage(
+          child: MaterialApp(
+            theme: ThemeData(
+                brightness: widget.preferences.brightness ?? Brightness.light),
+            darkTheme: ThemeData(brightness: Brightness.dark),
+            themeMode: widget.preferences.brightness == null
+                ? ThemeMode.system
+                : ThemeMode.values.firstWhere(
+                    (mode) => mode.name == widget.preferences.theme),
+            home: ManualUpcomingPreviewPage(
+              repository: widget.manualAcademicRepository,
+              preferences: widget.preferences,
+              onOpenSemesters: () => _pageController.jumpToPage(3),
+              onOpenTasks: () => _pageController.jumpToPage(2),
+              taskLoader: () =>
+                  ManualPreviewTaskStore(widget.manualTaskBox).readTasks(),
+            ),
+          ),
+        ),
+        _KeepAlivePage(
+          child: MaterialApp(
+            theme: ThemeData(
+                brightness: widget.preferences.brightness ?? Brightness.light),
+            darkTheme: ThemeData(brightness: Brightness.dark),
+            themeMode: widget.preferences.brightness == null
+                ? ThemeMode.system
+                : ThemeMode.values.firstWhere(
+                    (mode) => mode.name == widget.preferences.theme),
+            home: ManualCalendarPage(
+              key: _manualCalendarKey,
+              repository: widget.manualAcademicRepository,
+            ),
+          ),
+        ),
+        _KeepAlivePage(
+          child: MaterialApp(
+            theme: ThemeData(
+                brightness: widget.preferences.brightness ?? Brightness.light),
+            darkTheme: ThemeData(brightness: Brightness.dark),
+            themeMode: widget.preferences.brightness == null
+                ? ThemeMode.system
+                : ThemeMode.values.firstWhere(
+                    (mode) => mode.name == widget.preferences.theme),
+            home: ManualHomeworkPreviewPage(
+              previewBox: widget.manualTaskBox,
+              repository: widget.manualAcademicRepository,
+            ),
+          ),
+        ),
+        _KeepAlivePage(
+          child: SemesterListPage(
+            repository: widget.manualAcademicRepository,
+            previewBox: widget.manualTaskBox,
+          ),
+        ),
+        _KeepAlivePage(
+          child: MaterialApp(
+            theme: ThemeData(
+                brightness: widget.preferences.brightness ?? Brightness.light),
+            darkTheme: ThemeData(brightness: Brightness.dark),
+            themeMode: widget.preferences.brightness == null
+                ? ThemeMode.system
+                : ThemeMode.values.firstWhere(
+                    (mode) => mode.name == widget.preferences.theme),
+            home: ManualSettingsPage(
+              repository: widget.manualAcademicRepository,
+              taskBox: widget.manualTaskBox,
+              activeGeneration: widget.manualActiveGeneration,
+              preferences: widget.preferences,
+              onPreferencesChanged: widget.onPreferencesChanged,
+              onRestoreBackup: widget.onRestoreBackup,
+            ),
+          ),
+        ),
+      ];
 
   @override
   void initState() {
     super.initState();
-    initFuse();
+    _pages = _makePages();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preferences != widget.preferences) _pages = _makePages();
   }
 
   @override
@@ -89,6 +191,10 @@ class _HomePageState extends State<HomePage> {
       child: PageView(
         controller: _pageController,
         onPageChanged: (index) {
+          if (index == 1) {
+            unawaited(_manualCalendarKey.currentState?.refresh() ??
+                Future<void>.value());
+          }
           if (index != _indexNum) {
             setState(() {
               _indexNum = index;
@@ -145,41 +251,6 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
-  }
-
-  Future<void> initFuse() async {
-    await Future.delayed(const Duration(seconds: 1));
-    var fuse = Get.find<Rx<Fuse>>(tag: 'fuse');
-    var response =
-        await fuse.value.checkUpdate().whenComplete(() => fuse.refresh());
-    if (response != null) {
-      if (!mounted) return;
-      showCupertinoDialog(
-          context: context,
-          builder: (context) {
-            return CupertinoAlertDialog(
-              title: const Text('更新可用'),
-              content: Text(response),
-              actions: [
-                CupertinoDialogAction(
-                  child: const Text('忽略'),
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                CupertinoDialogAction(
-                  child: const Text('访问网站'),
-                  onPressed: () async {
-                    await launchUrlString(
-                      'https://celechron.top',
-                      mode: LaunchMode.externalApplication,
-                    );
-                  },
-                ),
-              ],
-            );
-          });
-    }
   }
 }
 

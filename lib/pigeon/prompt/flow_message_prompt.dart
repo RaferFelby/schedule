@@ -33,9 +33,10 @@ class PeriodDto {
 }
 
 class FlowMessage {
-  FlowMessage({required this.flowListDto});
+  FlowMessage({required this.flowListDto, required this.revision});
 
   List<PeriodDto?> flowListDto;
+  int revision;
 }
 
 @HostApi()

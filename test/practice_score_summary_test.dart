@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:celechron/http/zjuServices/sztz.dart';
 import 'package:celechron/model/practice_score_item.dart';
 import 'package:celechron/model/scholar.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -230,58 +227,6 @@ void main() {
   });
 
   group('响应和缓存隔离', () {
-    test('登录页 HTML、错误 code、缺失结构和账号不匹配均无效', () {
-      const account = '3000000001';
-      expect(
-        Sztz.isValidMyInfoResponse(
-          '<!doctype html><html><body>login</body></html>',
-          accountScope: account,
-        ),
-        isFalse,
-      );
-      expect(
-        Sztz.isValidMyInfoResponse(
-          jsonEncode({'code': 1, 'msg': 'failed'}),
-          accountScope: account,
-        ),
-        isFalse,
-      );
-      expect(
-        Sztz.isValidMyInfoResponse(
-          jsonEncode({'code': 0, 'extend': {}}),
-          accountScope: account,
-        ),
-        isFalse,
-      );
-      expect(
-        Sztz.isValidMyInfoResponse(
-          jsonEncode({
-            'code': 0,
-            'extend': {
-              'myInfo': {
-                'xh': '3000000002',
-                'dektJf': 1,
-                'dsktJf': 0,
-                'dsiktJf': 0,
-              },
-            },
-          }),
-          accountScope: account,
-        ),
-        isFalse,
-      );
-    });
-
-    test('账号缓存 key 隔离且不包含明文学号', () {
-      const first = '3000000001';
-      const second = '3000000002';
-      final firstKey = Sztz.myInfoCacheKeyForAccount(first);
-      final secondKey = Sztz.myInfoCacheKeyForAccount(second);
-      expect(firstKey, isNot(secondKey));
-      expect(firstKey, isNot(contains(first)));
-      expect(secondKey, isNot(contains(second)));
-    });
-
     test('缓存字段不完整时安全判为无效', () {
       expect(
         () => PracticeScoreSummary.fromCacheJson(

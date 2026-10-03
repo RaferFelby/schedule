@@ -1,0 +1,10 @@
+{
+  "semesterList": [
+    {"id": "term-syn-001", "name": "2026 秋季学期"},
+    {"name": "未命名学期"}
+  ],
+  "courses": [
+    {"id": "course-syn-001", "name": "线性代数", "credit": 3.0},
+    {"name": "数据结构"}
+  ]
+}

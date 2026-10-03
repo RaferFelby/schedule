@@ -2,7 +2,7 @@
 //  WatchECardWidget.swift
 //  WatchWidgetExtensions
 //
-//  表盘复杂功能「付款码」：展示本地余额并作为付款码入口
+//  Retained as an upgrade-safe placeholder for existing watch-face widgets.
 //
 
 import SwiftUI
@@ -10,40 +10,33 @@ import WidgetKit
 
 struct WatchECardEntry: TimelineEntry {
     let date: Date
-    /// 单位为分；负值表示尚未取得真实余额。
-    let balance: Int
 }
 
 struct WatchECardProvider: TimelineProvider {
     func placeholder(in context: Context) -> WatchECardEntry {
-        WatchECardEntry(date: Date(), balance: -1)
+        WatchECardEntry(date: Date())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WatchECardEntry) -> Void) {
-        completion(currentEntry())
+        clearLegacyCache()
+        completion(WatchECardEntry(date: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchECardEntry>) -> Void) {
+        clearLegacyCache()
         completion(
             Timeline(
-                entries: [currentEntry()],
-                // Watch App 写入新余额时也会主动 reload；定时刷新用于兜底。
-                policy: .after(Date(timeIntervalSinceNow: 1_800))
+                entries: [WatchECardEntry(date: Date())],
+                policy: .never
             )
         )
     }
 
-    private func currentEntry(now: Date = Date()) -> WatchECardEntry {
-        guard
-            let defaults = WidgetAppGroup.defaults,
-            defaults.object(forKey: WidgetAppGroup.ecardBalanceKey) != nil
-        else {
-            return WatchECardEntry(date: now, balance: -1)
-        }
-        return WatchECardEntry(
-            date: now,
-            balance: defaults.integer(forKey: WidgetAppGroup.ecardBalanceKey)
-        )
+    private func clearLegacyCache() {
+        guard let defaults = WidgetAppGroup.defaults else { return }
+        defaults.removeObject(forKey: WidgetAppGroup.ecardBalanceKey)
+        defaults.removeObject(forKey: WidgetAppGroup.ecardUpdateTimeKey)
+        defaults.removeObject(forKey: WidgetAppGroup.ecardLoggedInKey)
     }
 }
 
@@ -51,15 +44,14 @@ struct WatchECardWidget: Widget {
     let kind: String = "ECardWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchECardProvider()) { entry in
-            WatchECardWidgetView(entry: entry)
+        StaticConfiguration(kind: kind, provider: WatchECardProvider()) { _ in
+            WatchECardWidgetView()
                 .containerBackground(for: .widget) {
                     Color.clear
                 }
-                .widgetURL(WatchAccessoryKind.ecard.deepLink)
         }
-        .configurationDisplayName("付款码")
-        .description("显示校园卡余额并打开付款码")
+        .configurationDisplayName("校园卡已停用")
+        .description("此校园卡表盘组件已停用")
         .supportedFamilies([
             .accessoryCircular,
             .accessoryRectangular,
@@ -70,35 +62,16 @@ struct WatchECardWidget: Widget {
 }
 
 struct WatchECardWidgetView: View {
-    let entry: WatchECardEntry
-
     var body: some View {
-        WatchECardAccessoryView(balance: entry.balance)
+        Text("校园卡已停用")
+            .font(.caption)
+            .multilineTextAlignment(.center)
+            .accessibilityLabel("校园卡组件已停用")
     }
 }
 
-// MARK: - Previews（四种复杂功能族）
-
-#Preview("付款码 · 圆形", as: .accessoryCircular) {
+#Preview("校园卡已停用", as: .accessoryCircular) {
     WatchECardWidget()
 } timeline: {
-    WatchECardEntry(date: Date(), balance: 5_235)
-}
-
-#Preview("付款码 · 矩形", as: .accessoryRectangular) {
-    WatchECardWidget()
-} timeline: {
-    WatchECardEntry(date: Date(), balance: 5_235)
-}
-
-#Preview("付款码 · 行内", as: .accessoryInline) {
-    WatchECardWidget()
-} timeline: {
-    WatchECardEntry(date: Date(), balance: 5_235)
-}
-
-#Preview("付款码 · 角位", as: .accessoryCorner) {
-    WatchECardWidget()
-} timeline: {
-    WatchECardEntry(date: Date(), balance: 5_235)
+    WatchECardEntry(date: Date())
 }

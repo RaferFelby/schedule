@@ -221,9 +221,9 @@ class _DiagnosticLogPageState extends State<DiagnosticLogPage> {
               children: [
                 Icon(CupertinoIcons.doc_text_search, size: 36),
                 SizedBox(height: 12),
-                Text('暂无可读的刷新记录'),
+                Text('暂无可读的历史诊断报告'),
                 SizedBox(height: 6),
-                Text('执行一次刷新后，这里会显示刷新结果、模块状态和关键时间线。'),
+                Text('本地操作记录可在原始日志中查看。'),
               ],
             ),
           ),
@@ -560,7 +560,7 @@ class _DiagnosticLogPageState extends State<DiagnosticLogPage> {
     final displayText = _loading
         ? '正在读取日志…'
         : _logText.isEmpty
-            ? '暂无诊断日志。执行一次刷新后再试。'
+            ? '暂无诊断日志。发生问题后可导出当前本地操作记录。'
             : _logText;
     return CupertinoScrollbar(
       child: ListView(

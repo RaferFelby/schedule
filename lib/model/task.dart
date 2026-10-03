@@ -98,6 +98,16 @@ class Task {
   bool blockArrangements;
   @HiveField(15)
   String? fromUid;
+  @HiveField(16)
+  String? courseId;
+  @HiveField(17)
+  bool isCoursework;
+  @HiveField(18)
+  bool isTimeEstimated;
+  @HiveField(19)
+  bool reminderEnabled;
+  @HiveField(20)
+  Duration reminderOffset;
 
   Task({
     this.uid = '114514',
@@ -116,7 +126,16 @@ class Task {
     required this.repeatEndsTime,
     this.blockArrangements = true,
     this.fromUid,
+    this.courseId,
+    this.isCoursework = false,
+    this.isTimeEstimated = true,
+    this.reminderEnabled = false,
+    this.reminderOffset = const Duration(days: 1),
   });
+
+  /// Whether elapsed time may be used to derive a deadline task's progress.
+  /// Legacy and ordinary tasks retain the previous estimate-based behavior.
+  bool get tracksEstimatedTime => isTimeEstimated;
 
   void reset() {
     genUid();
@@ -138,6 +157,11 @@ class Task {
     repeatEndsTime = DateTime(startTime.year, startTime.month, startTime.day);
     blockArrangements = true;
     fromUid = null;
+    courseId = null;
+    isCoursework = false;
+    isTimeEstimated = true;
+    reminderEnabled = false;
+    reminderOffset = const Duration(days: 1);
   }
 
   void copy(Task another) {
@@ -157,6 +181,11 @@ class Task {
     repeatEndsTime = another.repeatEndsTime;
     blockArrangements = another.blockArrangements;
     fromUid = another.fromUid;
+    courseId = another.courseId;
+    isCoursework = another.isCoursework;
+    isTimeEstimated = another.isTimeEstimated;
+    reminderEnabled = another.reminderEnabled;
+    reminderOffset = another.reminderOffset;
   }
 
   Task copyWith({
@@ -176,6 +205,12 @@ class Task {
     DateTime? repeatEndsTime,
     bool? blockArrangements,
     String? fromUid,
+    String? courseId,
+    bool clearCourseId = false,
+    bool? isCoursework,
+    bool? isTimeEstimated,
+    bool? reminderEnabled,
+    Duration? reminderOffset,
   }) {
     return Task(
       uid: uid ?? this.uid,
@@ -194,6 +229,11 @@ class Task {
       repeatEndsTime: repeatEndsTime ?? this.repeatEndsTime,
       blockArrangements: blockArrangements ?? this.blockArrangements,
       fromUid: fromUid ?? this.fromUid,
+      courseId: clearCourseId ? null : courseId ?? this.courseId,
+      isCoursework: isCoursework ?? this.isCoursework,
+      isTimeEstimated: isTimeEstimated ?? this.isTimeEstimated,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderOffset: reminderOffset ?? this.reminderOffset,
     );
   }
 
@@ -224,7 +264,9 @@ class Task {
             (endTime.difference(startTime).inSeconds);
       }
     } else if (type == TaskType.deadline) {
-      progress = timeSpent.inSeconds / timeNeeded.inSeconds;
+      progress = tracksEstimatedTime && timeNeeded > Duration.zero
+          ? timeSpent.inSeconds / timeNeeded.inSeconds
+          : (tracksEstimatedTime && timeSpent >= timeNeeded ? 1 : 0);
     }
     if (progress > 1) {
       progress = 1;
@@ -240,7 +282,7 @@ class Task {
       return;
     }
     timeSpent = length;
-    if (timeSpent > timeNeeded) {
+    if (tracksEstimatedTime && timeSpent > timeNeeded) {
       timeSpent = timeNeeded;
     }
     refreshStatus();
@@ -248,7 +290,7 @@ class Task {
 
   void refreshStatus() {
     if (type == TaskType.deadline) {
-      if (timeSpent >= timeNeeded) {
+      if (tracksEstimatedTime && timeSpent >= timeNeeded) {
         status = TaskStatus.completed;
       } else if (status != TaskStatus.completed &&
           endTime.isBefore(DateTime.now())) {
@@ -265,7 +307,7 @@ class Task {
 
   void forceRefreshStatus() {
     if (type == TaskType.deadline) {
-      if (timeSpent >= timeNeeded) {
+      if (tracksEstimatedTime && timeSpent >= timeNeeded) {
         status = TaskStatus.completed;
       } else if (status != TaskStatus.completed &&
           endTime.isBefore(DateTime.now())) {
@@ -427,6 +469,8 @@ class Task {
     if (type != another.type ||
         timeSpent != another.timeSpent ||
         timeNeeded != another.timeNeeded ||
+        isCoursework != another.isCoursework ||
+        isTimeEstimated != another.isTimeEstimated ||
         (type == TaskType.fixed && endTime != another.endTime) ||
         endTime != another.endTime ||
         status != another.status ||

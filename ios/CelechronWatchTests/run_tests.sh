@@ -3,20 +3,12 @@ set -euo pipefail
 
 TEST_DIRECTORY="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIRECTORY="$(cd "${TEST_DIRECTORY}/../.." && pwd)"
-QR_TEST_BINARY="$(mktemp "${TMPDIR:-/tmp}/celechron-qr-tests.XXXXXX")"
-ECARD_TEST_BINARY="$(mktemp "${TMPDIR:-/tmp}/celechron-ecard-tests.XXXXXX")"
-trap 'rm -f "${QR_TEST_BINARY}" "${ECARD_TEST_BINARY}"' EXIT
+WATCH_TEST_BINARY="$(mktemp "${TMPDIR:-/tmp}/celechron-watch-cleanup-tests.XXXXXX")"
+trap 'rm -f "${WATCH_TEST_BINARY}"' EXIT
 
 xcrun swiftc \
-  "${PROJECT_DIRECTORY}/ios/CelechronWatch/SimpleQRCode.swift" \
-  "${TEST_DIRECTORY}/SimpleQRCodeTests.swift" \
-  -o "${QR_TEST_BINARY}"
+  "${PROJECT_DIRECTORY}/ios/CelechronWatch/LegacyWatchCredentialCleanup.swift" \
+  "${TEST_DIRECTORY}/LegacyWatchCredentialCleanupTests.swift" \
+  -o "${WATCH_TEST_BINARY}"
 
-"${QR_TEST_BINARY}" "${TEST_DIRECTORY}/reference_matrices.json"
-
-xcrun swiftc \
-  "${PROJECT_DIRECTORY}/ios/Shared/ECardService.swift" \
-  "${TEST_DIRECTORY}/ECardServiceTests.swift" \
-  -o "${ECARD_TEST_BINARY}"
-
-"${ECARD_TEST_BINARY}"
+"${WATCH_TEST_BINARY}"

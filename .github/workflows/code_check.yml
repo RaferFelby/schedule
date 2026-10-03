@@ -1,38 +1,55 @@
-name: Check code issues
+name: iOS and watchOS checks
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  flutter_analyze:
-    runs-on: ubuntu-latest
-
+  apple_checks:
+    runs-on: macos-15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Flutter
+      - name: Select Xcode 16.4
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Set up Flutter 3.47.5
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: 3.47.5
           channel: stable
           cache: true
 
-      - name: Verify Flutter installation
-        run: flutter --version
+      - name: Verify toolchain
+        run: |
+          flutter --version
+          dart --version
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Install locked dependencies
+        run: flutter pub get --enforce-lockfile
 
-      - name: Check code formatting
-        run: dart format --output=none --set-exit-if-changed .
-
-      - name: Analyze code
+      - name: Analyze Dart sources
         run: flutter analyze --no-fatal-infos
 
-      # - name: Run tests
-      #   run: flutter test
+      - name: Run Flutter tests
+        run: flutter test
+
+      - name: Build iOS app and widgets
+        run: flutter build ios --simulator --no-codesign
+
+      - name: Build Apple Watch app and widget
+        run: >-
+          xcodebuild -project ios/Runner.xcodeproj
+          -scheme CelechronWatch
+          -destination 'generic/platform=watchOS Simulator'
+          -derivedDataPath build/watchDerivedData
+          CODE_SIGNING_ALLOWED=NO build
+
+      - name: Test Watch legacy credential cleanup
+        run: bash ios/CelechronWatchTests/run_tests.sh

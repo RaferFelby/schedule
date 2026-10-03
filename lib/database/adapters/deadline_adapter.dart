@@ -43,7 +43,7 @@ class DeadlineAdapter extends TypeAdapter<Task> {
   @override
   void write(BinaryWriter writer, Task obj) {
     writer
-      ..writeByte(16)
+      ..writeByte(21)
       ..writeByte(0)
       ..write(obj.uid)
       ..writeByte(1)
@@ -75,7 +75,17 @@ class DeadlineAdapter extends TypeAdapter<Task> {
       ..writeByte(14)
       ..write(obj.blockArrangements)
       ..writeByte(15)
-      ..write(obj.fromUid);
+      ..write(obj.fromUid)
+      ..writeByte(16)
+      ..write(obj.courseId)
+      ..writeByte(17)
+      ..write(obj.isCoursework)
+      ..writeByte(18)
+      ..write(obj.isTimeEstimated)
+      ..writeByte(19)
+      ..write(obj.reminderEnabled)
+      ..writeByte(20)
+      ..write(obj.reminderOffset);
   }
 
   @override
@@ -104,6 +114,11 @@ class DeadlineAdapter extends TypeAdapter<Task> {
       ..repeatPeriod = fields[12] as int? ?? 1
       ..repeatEndsTime = fields[13] as DateTime? ?? (fields[5] as DateTime)
       ..blockArrangements = fields[14] as bool? ?? true
-      ..fromUid = fields[15] as String?;
+      ..fromUid = fields[15] as String?
+      ..courseId = fields[16] as String?
+      ..isCoursework = fields[17] as bool? ?? false
+      ..isTimeEstimated = fields[18] as bool? ?? true
+      ..reminderEnabled = fields[19] as bool? ?? false
+      ..reminderOffset = fields[20] as Duration? ?? const Duration(days: 1);
   }
 }
