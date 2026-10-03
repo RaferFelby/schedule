@@ -76,6 +76,27 @@ void main() {
       expect(periods.first.endTime.minute, 35);
     });
 
+    test('uses rule-specific teacher before the course-level teacher', () {
+      final rule = SessionRule(
+        id: '30000000-0000-4000-8000-000000000099',
+        courseId: course.id,
+        weekday: DateTime.tuesday,
+        weekNumbers: [1],
+        startSlotOrdinal: 1,
+        endSlotOrdinal: 1,
+        teacher: '分周教师',
+      );
+
+      final periods = ScheduleExpander.expandRule(
+        semester: semester,
+        course: course,
+        rule: rule,
+        timeSlots: TimeSlot.defaultTemplate(),
+      );
+
+      expect(periods.single.description, '教师：分周教师');
+    });
+
     test('omits only the cancelled occurrence date', () {
       final rule = SessionRule(
         id: '30000000-0000-4000-8000-000000000006',

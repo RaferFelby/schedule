@@ -7,6 +7,7 @@ import '../model/local_course.dart';
 import '../model/local_semester.dart';
 import 'course_edit_page.dart';
 import 'course_detail_page.dart';
+import 'pdf_timetable_import_page.dart';
 
 /// Lists only the courses belonging to the selected semester.
 final class CourseListPage extends StatefulWidget {
@@ -49,6 +50,26 @@ final class _CourseListPageState extends State<CourseListPage> {
 
   Future<void> _addCourse() async {
     await _openCourseForm();
+  }
+
+  Future<void> _importPdf() async {
+    if (_adding) return;
+    setState(() => _adding = true);
+    try {
+      final imported = await Navigator.of(context).push<bool>(
+        CupertinoPageRoute<bool>(
+          builder: (_) => PdfTimetableImportPage(
+            repository: widget.repository,
+            semester: widget.semester,
+          ),
+        ),
+      );
+      if (imported == true && mounted) {
+        setState(() => _courses = _readCourses());
+      }
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
   }
 
   Future<void> _openCourseForm() async {
@@ -104,12 +125,20 @@ final class _CourseListPageState extends State<CourseListPage> {
         navigationBar: CupertinoNavigationBar(
           previousPageTitle: '学期',
           middle: Text(widget.semester.name),
-          trailing: CupertinoButton(
-            key: const ValueKey('course-add'),
-            padding: EdgeInsets.zero,
-            onPressed: _adding ? null : _addCourse,
-            child: const Text('新增'),
-          ),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            CupertinoButton(
+              key: const ValueKey('course-import-pdf'),
+              padding: const EdgeInsets.only(right: 10),
+              onPressed: _adding ? null : _importPdf,
+              child: const Text('导入 PDF'),
+            ),
+            CupertinoButton(
+              key: const ValueKey('course-add'),
+              padding: EdgeInsets.zero,
+              onPressed: _adding ? null : _addCourse,
+              child: const Text('新增'),
+            ),
+          ]),
         ),
         child: SafeArea(
           child: FutureBuilder<List<LocalCourse>>(
@@ -134,6 +163,11 @@ final class _CourseListPageState extends State<CourseListPage> {
                       CupertinoButton.filled(
                         onPressed: _adding ? null : _addCourse,
                         child: const Text('新增课程'),
+                      ),
+                      CupertinoButton(
+                        key: const ValueKey('empty-course-import-pdf'),
+                        onPressed: _adding ? null : _importPdf,
+                        child: const Text('导入 PDF 课表'),
                       ),
                     ],
                   ),

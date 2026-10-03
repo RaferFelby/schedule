@@ -1,12 +1,18 @@
 # 课表系统
 
-面向 iPhone 与 Apple Watch 的本地时间管理应用：手动录入课程、考试、成绩及任务，规划日程并提供两端日程小组件。
+面向 iPhone 与 Apple Watch 的本地时间管理应用：手动录入或从浙大 PDF 课表导入课程，管理考试、成绩及任务，规划日程并提供两端日程小组件。
 
 ## 支持范围
 
 - iOS 主应用、iOS WidgetKit 小组件。
 - watchOS 应用、watchOS WidgetKit 小组件。
 - Flutter/Dart 共享业务代码；不再维护 Android、macOS、Windows、Linux 产品工程。
+- PDF 课表由 iPhone 本机 PDFKit 与 Vision 读取；确认前可编辑，课程数据保存在本机。
+
+## 版本
+
+- v0.1.0：Apple 平台手动课表与学业记录。
+- v0.2.0：新增本机 PDF 课表识别、导入草稿与课程安排编辑。
 
 ## 开发与验收
 

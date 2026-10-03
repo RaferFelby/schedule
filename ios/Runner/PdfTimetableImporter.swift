@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import UIKit
 import Vision
 
-final class PdfTimetableImporter: NSObject, FlutterPlugin, UIDocumentPickerDelegate {
+final class PdfTimetableImporter: NSObject, UIDocumentPickerDelegate {
     private let channel: FlutterMethodChannel
     private var pendingResult: FlutterResult?
 
@@ -29,11 +29,16 @@ final class PdfTimetableImporter: NSObject, FlutterPlugin, UIDocumentPickerDeleg
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf], asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
-        UIApplication.shared.connectedScenes
+        let presenter = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
-            .first(where: \.isKeyWindow)?
-            .rootViewController?.present(picker, animated: true)
+            .first(where: \.isKeyWindow)?.rootViewController
+        guard let presenter else {
+            pendingResult = nil
+            result(FlutterError(code: "picker_unavailable", message: "无法打开文件选择器", details: nil))
+            return
+        }
+        presenter.present(picker, animated: true)
     }
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
@@ -87,16 +92,69 @@ final class PdfTimetableImporter: NSObject, FlutterPlugin, UIDocumentPickerDeleg
     }
 
     private static func pdfSpans(page: PDFPage) -> [Span] {
-        guard let selection = page.selection(for: page.bounds(for: .cropBox)) else { return [] }
+        guard let text = page.string else { return [] }
         let bounds = page.bounds(for: .cropBox)
-        return selection.selectionsByLine().compactMap { line in
-            guard let text = line.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
-            let rect = line.bounds(for: page)
-            guard bounds.width > 0, bounds.height > 0 else { return nil }
-            return Span(text: text, x: Double((rect.minX - bounds.minX) / bounds.width),
-                        y: Double(1 - (rect.maxY - bounds.minY) / bounds.height),
-                        width: Double(rect.width / bounds.width), height: Double(rect.height / bounds.height))
+        guard bounds.width > 0, bounds.height > 0, page.rotation == 0 || page.rotation == 90 else { return [] }
+        let rotated = page.rotation == 90
+        let displayWidth = rotated ? bounds.height : bounds.width
+        let displayHeight = rotated ? bounds.width : bounds.height
+        let characters = text as NSString
+        var lines = [[(String, CGRect)]]()
+        for index in 0..<characters.length {
+            let glyph = page.characterBounds(at: index)
+            guard !glyph.isNull, glyph.width > 0, glyph.height > 0 else { continue }
+            let rect = rotated
+                ? CGRect(x: glyph.minX, y: glyph.minY + bounds.width, width: glyph.width, height: glyph.height)
+                : glyph
+            let value = characters.substring(with: NSRange(location: index, length: 1))
+            if let previous = lines.last?.last?.1,
+               abs(previous.midY - rect.midY) < 2.5,
+               rect.minX >= previous.maxX - 2,
+               rect.minX - previous.maxX < 25 {
+                lines[lines.count - 1].append((value, rect))
+            } else {
+                lines.append([(value, rect)])
+            }
         }
+        var spans = [Span]()
+        let weekdayLabels = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+        for label in weekdayLabels {
+            let range = characters.range(of: label)
+            guard range.location != NSNotFound else { continue }
+            let glyphs = (range.location..<NSMaxRange(range)).map { index -> (String, CGRect) in
+                let glyph = page.characterBounds(at: index)
+                let rect = rotated
+                    ? CGRect(x: glyph.minX, y: glyph.minY + bounds.width, width: glyph.width, height: glyph.height)
+                    : glyph
+                return (characters.substring(with: NSRange(location: index, length: 1)), rect)
+            }
+            spans.append(makeSpan(label, glyphs: glyphs, bounds: bounds,
+                                  width: displayWidth, height: displayHeight))
+        }
+        for line in lines {
+            let lineText = line.map(\.0).joined()
+            if weekdayLabels.contains(where: lineText.contains) { continue }
+            let value = lineText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty {
+                spans.append(makeSpan(value, glyphs: line, bounds: bounds,
+                                      width: displayWidth, height: displayHeight))
+            }
+        }
+        return spans
+    }
+
+    private static func makeSpan(
+        _ text: String,
+        glyphs: [(String, CGRect)],
+        bounds: CGRect,
+        width: CGFloat,
+        height: CGFloat
+    ) -> Span {
+        let first = glyphs[0].1
+        let rect = glyphs.dropFirst().reduce(first) { $0.union($1.1) }
+        return Span(text: text, x: Double((rect.minX - bounds.minX) / width),
+                    y: Double(1 - (rect.maxY - bounds.minY) / height),
+                    width: Double(rect.width / width), height: Double(rect.height / height))
     }
 
     private static func ocrSpans(page: PDFPage) throws -> [Span] {

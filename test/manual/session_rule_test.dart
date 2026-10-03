@@ -47,12 +47,16 @@ void main() {
       expect(restored.weekNumbers, [1, 3, 5]);
       expect(restored.courseId, rule.courseId);
       expect(restored.location, '教室 A');
+      expect(restored.teacher, isNull);
       expect(restored.cancelledDates, [DateTime(2026, 9, 22)]);
       expect(restored.extraOccurrences.single.date, DateTime(2026, 9, 26));
       expect(restored.extraOccurrences.single.id, 'extra-1');
       expect(restored.reschedules.single.originalDate, DateTime(2026, 10, 1));
       expect(restored.reschedules.single.targetDate, DateTime(2026, 10, 2));
       expect(SessionRule.fromJson(rule.toJson()).cancelledDates, isEmpty);
+      final legacyJson = Map<String, dynamic>.from(rule.toJson())
+        ..remove('teacher');
+      expect(SessionRule.fromJson(legacyJson).teacher, isNull);
     });
 
     test('rejects empty/invalid weeks, invalid weekdays, and reversed slots',
