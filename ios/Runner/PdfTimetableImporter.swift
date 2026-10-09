@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import UIKit
 import Vision
 
-final class PdfTimetableImporter: NSObject, FlutterPlugin, UIDocumentPickerDelegate {
+final class PdfTimetableImporter: NSObject, UIDocumentPickerDelegate {
     private let channel: FlutterMethodChannel
     private var pendingResult: FlutterResult?
 
@@ -29,11 +29,16 @@ final class PdfTimetableImporter: NSObject, FlutterPlugin, UIDocumentPickerDeleg
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf], asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
-        UIApplication.shared.connectedScenes
+        let presenter = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
-            .first(where: \.isKeyWindow)?
-            .rootViewController?.present(picker, animated: true)
+            .first(where: \.isKeyWindow)?.rootViewController
+        guard let presenter else {
+            pendingResult = nil
+            result(FlutterError(code: "picker_unavailable", message: "无法打开文件选择器", details: nil))
+            return
+        }
+        presenter.present(picker, animated: true)
     }
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
