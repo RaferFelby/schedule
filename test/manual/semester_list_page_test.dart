@@ -113,6 +113,7 @@ void main() {
       expect(saved.currentSemesterId, profile.semesters.single.id);
       expect(find.text('当前学期'), findsOneWidget);
       expect(find.text('设为当前'), findsNothing);
+      expect(find.textContaining('setState()'), findsNothing);
     });
 
     testWidgets('shows total and semester GPA plus earned credits',

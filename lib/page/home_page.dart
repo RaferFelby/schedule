@@ -49,6 +49,8 @@ class _HomePageState extends State<HomePage> {
   final PageController _pageController = PageController();
   final GlobalKey<ManualCalendarPageState> _manualCalendarKey =
       GlobalKey<ManualCalendarPageState>();
+  final GlobalKey<ManualUpcomingPreviewPageState> _manualUpcomingKey =
+      GlobalKey<ManualUpcomingPreviewPageState>();
 
   // 只构建一次，保持各页 widget 身份稳定，切页时不会重跑各页构造器里的 Get.put
   late List<Widget> _pages;
@@ -64,6 +66,7 @@ class _HomePageState extends State<HomePage> {
                 : ThemeMode.values.firstWhere(
                     (mode) => mode.name == widget.preferences.theme),
             home: ManualUpcomingPreviewPage(
+              key: _manualUpcomingKey,
               repository: widget.manualAcademicRepository,
               preferences: widget.preferences,
               onOpenSemesters: () => _pageController.jumpToPage(3),
@@ -191,6 +194,10 @@ class _HomePageState extends State<HomePage> {
       child: PageView(
         controller: _pageController,
         onPageChanged: (index) {
+          if (index == 0) {
+            unawaited(_manualUpcomingKey.currentState?.refresh() ??
+                Future<void>.value());
+          }
           if (index == 1) {
             unawaited(_manualCalendarKey.currentState?.refresh() ??
                 Future<void>.value());

@@ -16,7 +16,11 @@ final class PdfTimetableImporter: NSObject, UIDocumentPickerDelegate {
                 result(FlutterMethodNotImplemented)
                 return
             }
-            self?.pick(result: result)
+            guard let self else {
+                result(FlutterError(code: "importer_unavailable", message: "课表读取器未就绪，请重试", details: nil))
+                return
+            }
+            self.pick(result: result)
         }
     }
 
@@ -47,21 +51,32 @@ final class PdfTimetableImporter: NSObject, UIDocumentPickerDelegate {
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard let url = urls.first, let result = pendingResult else { return }
-        pendingResult = nil
+        guard let result = pendingResult else { return }
+        guard let url = urls.first else {
+            pendingResult = nil
+            result(FlutterError(code: "invalid_pdf", message: "未取得 PDF 文件，请重新选择", details: nil))
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let payload = Self.readDocument(at: url)
+            DispatchQueue.main.async {
+                self.pendingResult = nil
+                result(payload)
+            }
+        }
+    }
+
+    private static func readDocument(at url: URL) -> Any {
         let granted = url.startAccessingSecurityScopedResource()
         defer { if granted { url.stopAccessingSecurityScopedResource() } }
         guard let document = PDFDocument(url: url) else {
-            result(FlutterError(code: "invalid_pdf", message: "无法读取所选 PDF 文件", details: nil))
-            return
+            return FlutterError(code: "invalid_pdf", message: "无法读取所选 PDF 文件", details: nil)
         }
         guard !document.isLocked else {
-            result(FlutterError(code: "encrypted_pdf", message: "PDF 已加密或需要密码", details: nil))
-            return
+            return FlutterError(code: "encrypted_pdf", message: "PDF 已加密或需要密码", details: nil)
         }
         guard document.pageCount > 0 else {
-            result(FlutterError(code: "empty_pdf", message: "PDF 中没有可读取的页面", details: nil))
-            return
+            return FlutterError(code: "empty_pdf", message: "PDF 中没有可读取的页面", details: nil)
         }
         do {
             var pages = [[String: Any]]()
@@ -77,9 +92,9 @@ final class PdfTimetableImporter: NSObject, UIDocumentPickerDelegate {
                               "spans": spans.map { ["text": $0.text, "x": $0.x, "y": $0.y,
                                                     "width": $0.width, "height": $0.height] }])
             }
-            result(["pages": pages])
+            return ["pages": pages]
         } catch {
-            result(FlutterError(code: "pdf_read_failed", message: "读取 PDF 文字失败", details: nil))
+            return FlutterError(code: "pdf_read_failed", message: "读取 PDF 文字失败", details: nil)
         }
     }
 

@@ -1,12 +1,14 @@
 # Celechron iOS 与 Apple Watch 手动输入改造：逐步执行清单
 
+> 2026-10-21 状态更新：S001–S149 的适用实施项已完成；S114/S143 不适用，S028 仍按原记录暂缓。S150 的自动化/模拟器部分有检查记录，签名真机升级、通知与 Watch 联动仍需设备。PDF 导入属于清单之后的 v0.2 功能，现状以 [项目说明](PROJECT_SUMMARY.md)和 [Apple 验收](docs/APPLE_ACCEPTANCE.md)为准。下方保留分阶段历史状态。
+
 > 根据 `MANUAL_INPUT_PLAN.md` 拆解，保留 **150 个编号**；其中 Android 专属 S114、S143 不适用，其余 148 项仍按授权范围实施。
-> 状态：按序实施中。截至 2026-10-03，S001–S113 已完成（S028 暂缓），S114 不适用；S115 的 iOS 本地启动、迁移逐条 JSON 修正/显式跳过、App Support 决策持久化与重试，以及 S116–S122 的本地 tab、iPhone widget、Watch revision 同步均已接入并通过合成测试；S123 iPhone 旧凭据清理和 S124 手机到 Watch 的版本化凭据撤销已接入。跳过记录计入 ignored，旧源数据与原始备份保留；清理限定旧账号/密码/SSO/校园卡键。384 项 Flutter 测试、Watch harness 144 项断言、iOS Simulator 构建和 S124 Runner/Watch scheme 构建通过；目标文件 analyze 无问题。真实旧库升级、真机 Keychain/Watch 断连投递仍待平台验收。详情见 [操作日志](docs/WORK_LOG.md)；Windows 基线仅作历史记录。
+> 状态：按序实施中。截至 2026-10-03，S001–S113 已完成（S028 暂缓），S114 不适用；S115 的 iOS 本地启动、迁移逐条 JSON 修正/显式跳过、App Support 决策持久化与重试，以及 S116–S122 的本地 tab、iPhone widget、Watch revision 同步均已接入并通过合成测试；S123 iPhone 旧凭据清理和 S124 手机到 Watch 的版本化凭据撤销已接入。跳过记录计入 ignored，旧源数据与原始备份保留；清理限定旧账号/密码/SSO/校园卡键。384 项 Flutter 测试、Watch harness 144 项断言、iOS Simulator 构建和 S124 Runner/Watch scheme 构建通过；目标文件 analyze 无问题。真实旧库升级、真机 Keychain/Watch 断连投递仍待平台验收。详情见 操作日志（本机内部文档）；Windows 基线仅作历史记录。
 > 所有路径均相对于项目根目录；`lib/manual/` 是建议新增目录。本文中尚未出现的文件名是拟定实现位置。
 
 ## 执行约定
 
-通用工作范围、小步修改、提交授权及检查要求遵循 [AGENTS.md](AGENTS.md)；启用子 agent 时另遵循 [协作流程](docs/agent-workflow.md)。以下仅补充本次改造的具体要求。
+通用工作范围、小步修改、提交授权及检查要求遵循 AGENTS.md（本机内部文档）；启用子 agent 时另遵循 协作流程（本机内部文档）。以下仅补充本次改造的具体要求。
 
 每个编号是一项独立工作，仅在本次授权范围内按前置依赖顺序执行；步骤顺序不代表执行全部改造的授权。少数清理步骤是只读核查，核查通过后再进行删除。
 
@@ -333,7 +335,7 @@ flutter run -t lib/debug/manual_preview.dart
 ## 步骤记录模板
 
 每完成一步只需要填下面几项：
-每次修改和检查仍须按 [操作与恢复流程](docs/operation-recovery.md) 留日志；本模板只汇总步骤结果，不替代操作记录。
+每次修改和检查仍须按 操作与恢复流程（本机内部文档） 留日志；本模板只汇总步骤结果，不替代操作记录。
 
 ```text
 步骤：Sxxx

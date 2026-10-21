@@ -29,10 +29,10 @@ final class ManualUpcomingPreviewPage extends StatefulWidget {
 
   @override
   State<ManualUpcomingPreviewPage> createState() =>
-      _ManualUpcomingPreviewPageState();
+      ManualUpcomingPreviewPageState();
 }
 
-final class _ManualUpcomingPreviewPageState
+final class ManualUpcomingPreviewPageState
     extends State<ManualUpcomingPreviewPage> {
   List<Period> _periods = const [];
   List<Task> _tasks = const [];
@@ -45,16 +45,16 @@ final class _ManualUpcomingPreviewPageState
   @override
   void initState() {
     super.initState();
-    _refresh();
+    refresh();
   }
 
   @override
   void didUpdateWidget(covariant ManualUpcomingPreviewPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.preferences != widget.preferences) _refresh();
+    if (oldWidget.preferences != widget.preferences) refresh();
   }
 
-  Future<void> _refresh() async {
+  Future<void> refresh() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -148,7 +148,7 @@ final class _ManualUpcomingPreviewPageState
           actions: [
             IconButton(
               tooltip: '刷新日程',
-              onPressed: _loading ? null : _refresh,
+              onPressed: _loading ? null : refresh,
               icon: const Icon(Icons.refresh),
             ),
           ],
@@ -172,21 +172,26 @@ final class _ManualUpcomingPreviewPageState
                                   children: [
                                     Text(
                                       '先创建学期，也可以稍后再建',
-                                      style: Theme.of(context).textTheme.titleMedium,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium,
                                     ),
                                     const SizedBox(height: 8),
-                                    const Text('创建学期后可以管理课程和课表；现在也可以跳过，直接使用普通任务。'),
+                                    const Text(
+                                        '创建学期后可以管理课程和课表；现在也可以跳过，直接使用普通任务。'),
                                     const SizedBox(height: 8),
                                     Wrap(
                                       spacing: 8,
                                       children: [
                                         FilledButton(
-                                          key: const ValueKey('first-use-create-semester'),
+                                          key: const ValueKey(
+                                              'first-use-create-semester'),
                                           onPressed: widget.onOpenSemesters,
                                           child: const Text('创建学期'),
                                         ),
                                         TextButton(
-                                          key: const ValueKey('first-use-skip-to-tasks'),
+                                          key: const ValueKey(
+                                              'first-use-skip-to-tasks'),
                                           onPressed: widget.onOpenTasks,
                                           child: const Text('跳过，先添加任务'),
                                         ),
@@ -196,7 +201,9 @@ final class _ManualUpcomingPreviewPageState
                                 ),
                               ),
                             ),
-                          if (_periods.isEmpty && _tasks.isEmpty && !_hasSemesters)
+                          if (_periods.isEmpty &&
+                              _tasks.isEmpty &&
+                              !_hasSemesters)
                             const ListTile(title: Text('还没有任务或日程')),
                           if (_assignments.isNotEmpty) ...[
                             ListTile(

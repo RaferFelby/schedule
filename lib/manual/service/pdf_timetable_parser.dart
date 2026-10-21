@@ -1,4 +1,5 @@
 import 'pdf_timetable_document.dart';
+import 'week_number_parser.dart';
 
 final class TimetableSessionDraft {
   TimetableSessionDraft({
@@ -49,18 +50,26 @@ final class TimetableCourseDraft {
   String? teacher;
   final List<TimetableSessionDraft> sessions;
   bool include;
+  bool creditsInputValid = true;
 
   bool get isComplete =>
+      creditsInputValid &&
+      (credits == null || credits!.isFinite && credits! >= 0) &&
       name.trim().isNotEmpty &&
       sessions.isNotEmpty &&
       sessions.every((session) => session.isComplete);
 }
 
 final class TimetableImportDraft {
-  TimetableImportDraft({required this.courses, this.termLabel});
+  TimetableImportDraft({
+    required this.courses,
+    this.termLabel,
+    this.warnings = const [],
+  });
 
   final List<TimetableCourseDraft> courses;
   final String? termLabel;
+  final List<String> warnings;
 
   bool get hasCourses => courses.isNotEmpty;
   bool get isComplete =>
@@ -69,11 +78,10 @@ final class TimetableImportDraft {
 
 /// Parses the ZJU timetable's weekday columns, section markers and course cards.
 final class PdfTimetableParser {
-  static final _sectionPattern =
-      RegExp(r'\(?\s*(\d{1,2})\s*[-–—至]\s*(\d{1,2})\s*节\)?');
+  static final _sectionPattern = RegExp(
+    r'[（(]?\s*(\d{1,2})(?:\s*[-–—至]\s*(\d{1,2}))?\s*节[）)]?',
+  );
   static final _weekdayPattern = RegExp(r'星期([一二三四五六日天])');
-  static final _weekPattern =
-      RegExp(r'(\d{1,2})\s*(?:[-–—至]\s*(\d{1,2})\s*)?周(?:\s*[（(]?(单|双)[）)]?)?');
   static const _weekdayNumbers = {
     '一': 1,
     '二': 2,
@@ -82,12 +90,12 @@ final class PdfTimetableParser {
     '五': 5,
     '六': 6,
     '日': 7,
-    '天': 7
+    '天': 7,
   };
 
   static TimetableImportDraft parse(PdfTimetableDocument document) {
     final result = <TimetableCourseDraft>[];
-    final coursesByKey = <String, TimetableCourseDraft>{};
+    final warnings = <String>[];
     final centers = <double>[];
     final currentNames = <int, String>{};
     final lastSession = <int, TimetableSessionDraft>{};
@@ -116,7 +124,10 @@ final class PdfTimetableParser {
         }
       }
       final validCenters = centers.where((value) => value.isFinite).toList();
-      if (validCenters.length != 7) continue;
+      if (validCenters.length != 7) {
+        warnings.add('第 ${page.index + 1} 页未能确认星期列，请对照 PDF 手动补录该页课程。');
+        continue;
+      }
 
       for (var spanIndex = 0; spanIndex < orderedSpans.length; spanIndex++) {
         final span = orderedSpans[spanIndex];
@@ -125,40 +136,39 @@ final class PdfTimetableParser {
         final text = span.text.replaceAll(RegExp(r'\s+'), ' ').trim();
         final section = _sectionPattern.firstMatch(text);
         if (section != null) {
+          final missingStart =
+              RegExp(r'[-–—至]\s*$').hasMatch(text.substring(0, section.start));
           serial++;
           final inlineName = text.substring(0, section.start).trim();
           final name = _looksLikeCourseName(inlineName)
               ? inlineName
               : currentNames.remove(day);
           final number = _courseNumber(text);
-          final key =
-              '${_key(name ?? '')}|${number ?? ''}|${name == null ? serial : ''}';
-          final course = coursesByKey.putIfAbsent(key, () {
-            final created = TimetableCourseDraft(
-              id: 'pdf-course-$serial',
-              name: name ?? '',
-              courseNumber: number,
-            );
-            result.add(created);
-            return created;
-          });
+          final course = TimetableCourseDraft(
+            id: 'pdf-course-$serial',
+            name: name ?? '',
+            courseNumber: number,
+          );
+          result.add(course);
           final session = TimetableSessionDraft(
             id: 'pdf-session-$serial',
             weekday: day,
             weekNumbers: _weeks(text),
-            startSlot: int.tryParse(section.group(1)!),
-            endSlot: int.tryParse(section.group(2)!),
+            startSlot: missingStart ? null : int.tryParse(section.group(1)!),
+            endSlot: int.parse(section.group(2) ?? section.group(1)!),
           );
           course.sessions.add(session);
           lastSession[day] = session;
-          locations.add(_SessionLocation(
-            page.index,
-            day,
-            span.y,
-            spanIndex,
-            course,
-            session,
-          ));
+          locations.add(
+            _SessionLocation(
+              page.index,
+              day,
+              span.y,
+              spanIndex,
+              course,
+              session,
+            ),
+          );
           continue;
         }
 
@@ -175,7 +185,8 @@ final class PdfTimetableParser {
           continue;
         }
         if (session != null && course != null) {
-          if (_weekPattern.hasMatch(text) && session.weekNumbers.isEmpty) {
+          if (WeekNumberParser.hasNotation(text) &&
+              session.weekNumbers.isEmpty) {
             session.weekNumbers = _weeks(text);
           }
         }
@@ -191,7 +202,8 @@ final class PdfTimetableParser {
         final text = span.text.replaceAll(RegExp(r'\s+'), ' ').trim();
         final candidates = locations
             .where(
-                (item) => item.pageIndex == page.index && item.weekday == day)
+              (item) => item.pageIndex == page.index && item.weekday == day,
+            )
             .toList();
         if (candidates.isEmpty) continue;
         final preceding = candidates
@@ -204,18 +216,36 @@ final class PdfTimetableParser {
             ..add(preceding.first);
         } else {
           candidates.sort(
-              (a, b) => (a.y - span.y).abs().compareTo((b.y - span.y).abs()));
+            (a, b) => (a.y - span.y).abs().compareTo((b.y - span.y).abs()),
+          );
         }
         final nearest = candidates.first;
         if ((nearest.y - span.y).abs() > 0.12) continue;
-        if (_weekPattern.hasMatch(text) &&
+        if (WeekNumberParser.hasNotation(text) &&
             nearest.session.weekNumbers.isEmpty) {
           nearest.session.weekNumbers = _weeks(text);
         }
         _readDetails(text, nearest.course, nearest.session);
       }
     }
-    return TimetableImportDraft(courses: result, termLabel: termLabel);
+    final grouped = <String, TimetableCourseDraft>{};
+    final courses = <TimetableCourseDraft>[];
+    for (final course in result) {
+      final key = '${_key(course.name)}|${course.courseNumber ?? ''}';
+      final existing = course.name.isEmpty ? null : grouped[key];
+      if (existing == null) {
+        grouped[key] = course;
+        courses.add(course);
+      } else {
+        existing.sessions.addAll(course.sessions);
+        existing.credits ??= course.credits;
+      }
+    }
+    return TimetableImportDraft(
+      courses: courses,
+      termLabel: termLabel,
+      warnings: warnings,
+    );
   }
 
   static int? _dayFor(PdfTextSpan span, List<double> centers) {
@@ -233,25 +263,13 @@ final class PdfTimetableParser {
     return distance < 0.075 ? best + 1 : null;
   }
 
-  static List<int> _weeks(String text) {
-    final weeks = <int>{};
-    for (final match in _weekPattern.allMatches(text)) {
-      final start = int.parse(match.group(1)!);
-      final end = int.tryParse(match.group(2) ?? '') ?? start;
-      if (end < start || end - start > 52) continue;
-      final parity = match.group(3);
-      for (var week = start; week <= end; week++) {
-        if (parity == '单' && week.isEven || parity == '双' && week.isOdd) {
-          continue;
-        }
-        weeks.add(week);
-      }
-    }
-    return weeks.toList()..sort();
-  }
+  static List<int> _weeks(String text) => WeekNumberParser.extract(text);
 
   static void _readDetails(
-      String text, TimetableCourseDraft course, TimetableSessionDraft session) {
+    String text,
+    TimetableCourseDraft course,
+    TimetableSessionDraft session,
+  ) {
     course.courseNumber ??= _courseNumber(text);
     final credits = RegExp(r'学分\s*[:：]\s*(\d+(?:\.\d+)?)').firstMatch(text);
     course.credits ??= double.tryParse(credits?.group(1) ?? '');
@@ -272,9 +290,10 @@ final class PdfTimetableParser {
 
   static bool _looksLikeCourseName(String value) =>
       value.isNotEmpty &&
+      RegExp(r'[A-Za-z\u3400-\u9fff]').hasMatch(value) &&
       !_weekdayPattern.hasMatch(value) &&
       !_sectionPattern.hasMatch(value) &&
-      !_weekPattern.hasMatch(value) &&
+      !WeekNumberParser.hasNotation(value) &&
       !RegExp(r'^(?:\d{1,2}|上午|下午|晚上)$').hasMatch(value) &&
       !RegExp(r'^(?:教师|地点|场地|校区|教学班|学分|总学时|课程学时组成|时间段)\s*[:：]?')
           .hasMatch(value) &&

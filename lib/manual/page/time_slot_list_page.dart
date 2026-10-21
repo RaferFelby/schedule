@@ -129,7 +129,11 @@ final class _TimeSlotListPageState extends State<TimeSlotListPage> {
           practiceRecords: latest.practiceRecords,
         ),
       );
-      if (mounted) setState(() => _profile = Future.value(saved));
+      if (mounted) {
+        setState(() {
+          _profile = Future.value(saved);
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {

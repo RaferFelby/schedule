@@ -11,12 +11,18 @@
 
 ## 版本
 
-- v0.1.0：Apple 平台手动课表与学业记录。
-- v0.2.0：新增本机 PDF 课表识别、导入草稿与课程安排编辑。
+- v0.1.1：手动课表与学业记录，已修复早期 iOS 编译问题。
+- v0.2.1：本机 PDF 课表识别、可编辑草稿、课程安排与分周教师。
+- 当前工作区的后续修正见 [更新记录](CHANGELOG.md)中的“未发布”。
+
+先在「学业」建立学期、设置第一周星期一和节次时间，再进入学期课程列表导入 PDF。
+首版主要支持浙大教务课表格式；核对草稿、补齐周次/节次等信息后确认，课程会进入本地课表。
+假期停课、调课和补课在课程详情按日期设置。
 
 ## 开发与验收
 
-已验证工具链：Flutter 3.47.5、Dart 3.13.4、Xcode 16.4。依赖以 `pubspec.lock` 为准，使用 `flutter pub get --enforce-lockfile`。
+当前本机工具链：Flutter 3.47.3、Dart 3.13.3、Xcode 27.0；iOS 26/27 为目标运行系统。
+依赖以 `pubspec.lock` 为准，使用 `flutter pub get --enforce-lockfile`。
 
 - [Apple CI 与构建步骤](docs/APPLE_CI.md)
 - [Apple 验收与待完成实机检查](docs/APPLE_ACCEPTANCE.md)

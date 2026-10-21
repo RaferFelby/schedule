@@ -225,10 +225,28 @@ final class _ManualCourseSchedulePageState
         constraints: const BoxConstraints(minHeight: 46),
         padding: const EdgeInsets.all(3),
         alignment: Alignment.center,
-        child: Text(
-          periods.map((period) => period.summary).join('\n'),
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final period in periods)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Column(children: [
+                  Text(period.summary,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 11)),
+                  if (period.description.isNotEmpty &&
+                      period.description != period.summary)
+                    Text(period.description,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 10)),
+                  if (period.location.isNotEmpty)
+                    Text(period.location,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 10)),
+                ]),
+              ),
+          ],
         ),
       );
 

@@ -75,6 +75,7 @@ void main() {
       expect(saved.timeSlots, hasLength(15));
       expect(saved.timeSlots.first.startMinute, 490);
       expect(saved.timeSlots.first.endMinute, 535);
+      expect(find.textContaining('setState()'), findsNothing);
     });
 
     testWidgets('blocks deletion of a period referenced by a session rule',

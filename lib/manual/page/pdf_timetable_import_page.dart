@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+
 import '../data/academic_repository.dart';
 import '../data/local_data_error.dart';
 import '../model/academic_profile.dart';
@@ -11,8 +12,11 @@ import 'pdf_timetable_draft_editor.dart';
 import 'time_slot_list_page.dart';
 
 final class PdfTimetableImportPage extends StatefulWidget {
-  const PdfTimetableImportPage(
-      {super.key, required this.repository, required this.semester});
+  const PdfTimetableImportPage({
+    super.key,
+    required this.repository,
+    required this.semester,
+  });
 
   final AcademicRepository repository;
   final LocalSemester semester;
@@ -30,6 +34,8 @@ final class _PdfTimetableImportPageState extends State<PdfTimetableImportPage> {
   List<PdfTimetablePage> _pages = const [];
   bool _loading = true;
   bool _saving = false;
+  bool _reading = false;
+  int _documentGeneration = 0;
   String? _error;
 
   @override
@@ -40,6 +46,8 @@ final class _PdfTimetableImportPageState extends State<PdfTimetableImportPage> {
   }
 
   Future<void> _begin() async {
+    if (_reading || _saving) return;
+    _reading = true;
     setState(() {
       _loading = true;
       _error = null;
@@ -63,15 +71,20 @@ final class _PdfTimetableImportPageState extends State<PdfTimetableImportPage> {
       setState(() {
         _pages = document.pages;
         _draft = draft;
+        _documentGeneration++;
         _loading = false;
       });
     } catch (error) {
       if (mounted) {
         setState(() {
+          _draft = null;
+          _pages = const [];
           _error = _readableError(error);
           _loading = false;
         });
       }
+    } finally {
+      _reading = false;
     }
   }
 
@@ -86,19 +99,23 @@ final class _PdfTimetableImportPageState extends State<PdfTimetableImportPage> {
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, item),
               child: Text(item.name),
-            )
+            ),
         ],
         cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
       ),
     );
     if (selected != null && mounted) setState(() => _semester = selected);
   }
 
   Future<void> _configureSlots() async {
-    await Navigator.of(context).push<void>(CupertinoPageRoute<void>(
-      builder: (_) => TimeSlotListPage(repository: widget.repository),
-    ));
+    await Navigator.of(context).push<void>(
+      CupertinoPageRoute<void>(
+        builder: (_) => TimeSlotListPage(repository: widget.repository),
+      ),
+    );
     final profile = await widget.repository.read();
     if (mounted) setState(() => _profile = profile);
   }
@@ -111,15 +128,18 @@ final class _PdfTimetableImportPageState extends State<PdfTimetableImportPage> {
       builder: (context) => CupertinoAlertDialog(
         title: const Text('导入课程？'),
         content: Text(
-            '将向「${_semester!.name}」新增 ${included.length} 门课程及其上课安排，不会覆盖已有课程。'),
+          '将向「${_semester!.name}」新增 ${included.length} 门课程及其上课安排，不会覆盖已有课程。',
+        ),
         actions: [
           CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('返回检查')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('返回检查'),
+          ),
           CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('确认导入')),
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认导入'),
+          ),
         ],
       ),
     );
@@ -168,41 +188,55 @@ final class _PdfTimetableImportPageState extends State<PdfTimetableImportPage> {
   }
 
   bool _isDuplicate(TimetableCourseDraft course) {
-    return _profile!.courses.any((existing) =>
-        existing.semesterId == _semester!.id &&
-        ((course.courseNumber?.isNotEmpty == true &&
-                existing.courseNumber == course.courseNumber) ||
-            existing.name.trim().toLowerCase() ==
-                course.name.trim().toLowerCase()));
+    return _profile!.courses.any(
+      (existing) =>
+          existing.semesterId == _semester!.id &&
+          ((course.courseNumber?.isNotEmpty == true &&
+                  existing.courseNumber == course.courseNumber) ||
+              existing.name.trim().toLowerCase() ==
+                  course.name.trim().toLowerCase()),
+    );
   }
 
   @override
-  Widget build(BuildContext context) => CupertinoPageScaffold(
-        navigationBar: CupertinoNavigationBar(
-          previousPageTitle: '课程',
-          middle: const Text('导入 PDF 课表'),
-          trailing: CupertinoButton(
+  Widget build(BuildContext context) => PopScope(
+        canPop: !_saving,
+        child: CupertinoPageScaffold(
+          navigationBar: CupertinoNavigationBar(
+            previousPageTitle: '课程',
+            middle: const Text('导入 PDF 课表'),
+            trailing: CupertinoButton(
               padding: EdgeInsets.zero,
-              onPressed: _saving ? null : _begin,
-              child: const Text('重选 PDF')),
-        ),
-        child: SafeArea(
+              onPressed: _saving || _loading ? null : _begin,
+              child: const Text('重选 PDF'),
+            ),
+          ),
+          child: SafeArea(
             child: _loading
                 ? const Center(child: CupertinoActivityIndicator())
                 : _draft == null
                     ? _errorView()
-                    : _editorView()),
+                    : AbsorbPointer(absorbing: _saving, child: _editorView()),
+          ),
+        ),
       );
 
   Widget _errorView() => Center(
-      child: Padding(
+        child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(_error ?? '请选择课表 PDF', textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            CupertinoButton.filled(
-                onPressed: _begin, child: const Text('重新选择文件')),
-          ])));
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error ?? '请选择课表 PDF', textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              CupertinoButton.filled(
+                onPressed: _begin,
+                child: const Text('重新选择文件'),
+              ),
+            ],
+          ),
+        ),
+      );
 
   Widget _editorView() {
     final draft = _draft!;
@@ -215,60 +249,80 @@ final class _PdfTimetableImportPageState extends State<PdfTimetableImportPage> {
     final timeSlots = _profile!.timeSlots.isEmpty
         ? TimeSlot.defaultTemplate()
         : _profile!.timeSlots;
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      if (draft.termLabel != null)
-        Text('PDF 标注：${draft.termLabel}。请核对所选学期；日期及第一周起点以本地学期为准。'),
-      if (usedVision)
-        const Padding(
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (draft.termLabel != null)
+          Text('PDF 标注：${draft.termLabel}。请核对所选学期；日期及第一周起点以本地学期为准。'),
+        if (usedVision)
+          const Padding(
             padding: EdgeInsets.only(top: 8),
-            child: Text('部分页面使用了设备端中文 OCR，请逐项核对识别结果。')),
-      const SizedBox(height: 8),
-      CupertinoButton(
+            child: Text('部分页面使用了设备端中文 OCR，请逐项核对识别结果。'),
+          ),
+        for (final warning in draft.warnings)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              warning,
+              style: const TextStyle(color: CupertinoColors.systemOrange),
+            ),
+          ),
+        const SizedBox(height: 8),
+        CupertinoButton(
           key: const ValueKey('import-select-semester'),
           padding: EdgeInsets.zero,
           onPressed: _chooseSemester,
           child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('导入学期：${_semester?.name ?? '请选择'}'))),
-      Text('已识别 ${draft.courses.length} 门课程，勾选开关可选择导入；疑似重复 $duplicates 门。'),
-      const Text('导入前请逐项与 PDF 对照；未识别出的安排可在课程详情中手动补录。'),
-      const SizedBox(height: 12),
-      for (final course in draft.courses)
-        PdfTimetableDraftEditor(
-          key: ValueKey('import-course-${course.id}'),
-          course: course,
-          duplicate: _isDuplicate(course),
-          timeSlots: timeSlots,
-          onChanged: () => setState(() {}),
-          onRemove: () => setState(() => draft.courses.remove(course)),
-        ),
-      if (_error case final error?)
-        Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(error,
-                style: const TextStyle(color: CupertinoColors.systemRed))),
-      if (_hasMissingSlots && includedCount > 0)
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('请补齐必填项和学期周次范围。未配置节次时，可在这里设置节次时间。'),
-          CupertinoButton(
-            key: const ValueKey('configure-import-slots'),
-            padding: EdgeInsets.zero,
-            onPressed: _saving ? null : _configureSlots,
-            child: const Text('配置节次时间'),
+            alignment: Alignment.centerLeft,
+            child: Text('导入学期：${_semester?.name ?? '请选择'}'),
           ),
-        ]),
-      const SizedBox(height: 8),
-      CupertinoButton.filled(
-        key: const ValueKey('confirm-pdf-import'),
-        onPressed: _saving ||
-                includedCount == 0 ||
-                !draft.isComplete ||
-                _hasMissingSlots
-            ? null
-            : _confirmImport,
-        child: Text(_saving ? '正在保存…' : '确认导入 $includedCount 门课程'),
-      ),
-    ]);
+        ),
+        Text('已识别 ${draft.courses.length} 门课程，勾选开关可选择导入；疑似重复 $duplicates 门。'),
+        const Text('导入前请逐项与 PDF 对照；未识别出的安排可在课程详情中手动补录。'),
+        const SizedBox(height: 12),
+        for (final course in draft.courses)
+          PdfTimetableDraftEditor(
+            key: ValueKey('import-course-$_documentGeneration-${course.id}'),
+            course: course,
+            duplicate: _isDuplicate(course),
+            timeSlots: timeSlots,
+            onChanged: () => setState(() {}),
+            onRemove: () => setState(() => draft.courses.remove(course)),
+          ),
+        if (_error case final error?)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              error,
+              style: const TextStyle(color: CupertinoColors.systemRed),
+            ),
+          ),
+        if (_hasMissingSlots && includedCount > 0)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('请补齐必填项和学期周次范围。未配置节次时，可在这里设置节次时间。'),
+              CupertinoButton(
+                key: const ValueKey('configure-import-slots'),
+                padding: EdgeInsets.zero,
+                onPressed: _saving ? null : _configureSlots,
+                child: const Text('配置节次时间'),
+              ),
+            ],
+          ),
+        const SizedBox(height: 8),
+        CupertinoButton.filled(
+          key: const ValueKey('confirm-pdf-import'),
+          onPressed: _saving ||
+                  includedCount == 0 ||
+                  !draft.isComplete ||
+                  _hasMissingSlots
+              ? null
+              : _confirmImport,
+          child: Text(_saving ? '正在保存…' : '确认导入 $includedCount 门课程'),
+        ),
+      ],
+    );
   }
 
   static String _readableError(Object error) {

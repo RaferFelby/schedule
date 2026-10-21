@@ -3,6 +3,7 @@ name: iOS and watchOS checks
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -19,10 +20,10 @@ jobs:
           sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
           xcodebuild -version
 
-      - name: Set up Flutter 3.47.5
+      - name: Set up Flutter 3.47.3
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.47.5
+          flutter-version: 3.47.3
           channel: stable
           cache: true
 
@@ -53,3 +54,11 @@ jobs:
 
       - name: Test Watch legacy credential cleanup
         run: bash ios/CelechronWatchTests/run_tests.sh
+
+      - name: Build Watch widget scheme
+        run: >-
+          xcodebuild -project ios/Runner.xcodeproj
+          -scheme WatchWidgetExtensions
+          -destination 'generic/platform=watchOS Simulator'
+          -derivedDataPath build/watchDerivedData
+          CODE_SIGNING_ALLOWED=NO build

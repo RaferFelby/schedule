@@ -1,5 +1,16 @@
 # Apple 产品范围清理
 
+## 2026-10-21 整理
+
+- 当前项目说明与历史网络版调查分开：旧内容移至 `docs/history/PROJECT_SUMMARY_20260919.md`。
+- 根忽略规则精简为 Flutter、CocoaPods、Xcode、构建包和本地编辑器产物；保留 pubspec.lock。
+- 删除未被 Xcode 引用且内容重复的 `ios/CelechronWatch/Resources/AppLogo.png`。实际 target 引用的 AppLogo.png 和 asset catalog 保留。
+- 清理 5 个属于已消失临时副本的 Xcode DerivedData 缓存，回收约 1.9 GiB；不删除模拟器或用户数据。
+- Dart 引用图涵盖生产入口、预览入口、Pigeon 定义及测试，未发现完全无引用的 Dart 文件。旧迁移及兼容实现继续保留。
+- 本轮功能修正和检查结果见 CHANGELOG 的未发布条目及 Apple 验收文档。
+
+## 2026-10-04 历史整理
+
 日期：2026-10-04。用户授权检查全项目，最终只支持 iOS/watchOS 与两端小组件。
 
 ## 已移出

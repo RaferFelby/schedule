@@ -65,7 +65,10 @@ final class _CourseListPageState extends State<CourseListPage> {
         ),
       );
       if (imported == true && mounted) {
-        setState(() => _courses = _readCourses());
+        final courses = _readCourses();
+        setState(() {
+          _courses = courses;
+        });
       }
     } finally {
       if (mounted) setState(() => _adding = false);

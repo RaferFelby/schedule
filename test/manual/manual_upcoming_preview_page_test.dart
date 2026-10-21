@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 final class _Store implements AcademicProfileStore {
   _Store(this.value);
-  final String value;
+  String value;
 
   @override
   Future<String?> readSnapshot() async => value;
@@ -73,6 +73,26 @@ AcademicProfile _profile() => AcademicProfile(
 
 void main() {
   final now = DateTime(2026, 10, 2, 12);
+
+  testWidgets('refresh reads courses added while another tab was open',
+      (tester) async {
+    final store = _Store(jsonEncode(
+      AcademicProfile(schemaVersion: 1, revision: 0).toJson(),
+    ));
+    final key = GlobalKey<ManualUpcomingPreviewPageState>();
+    await tester.pumpWidget(MaterialApp(
+        home: ManualUpcomingPreviewPage(
+      key: key,
+      repository: AcademicRepository(store),
+      now: () => now,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('数据库'), findsNothing);
+    store.value = jsonEncode(_profile().toJson());
+    await key.currentState!.refresh();
+    await tester.pumpAndSettle();
+    expect(find.text('数据库'), findsOneWidget);
+  });
 
   testWidgets('empty academic profile offers create or skip actions',
       (tester) async {

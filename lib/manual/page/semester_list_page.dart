@@ -130,7 +130,9 @@ final class _SemesterListPageState extends State<SemesterListPage> {
         ),
       );
       if (mounted) {
-        setState(() => _profile = Future.value(saved));
+        setState(() {
+          _profile = Future.value(saved);
+        });
       }
     } catch (error) {
       if (mounted) setState(() => _actionError = error.toString());
